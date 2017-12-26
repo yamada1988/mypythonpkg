@@ -78,7 +78,7 @@ class _MyBaseReporter(object):
             Whether to write the current time to the file.
         cell : bool, default=True
             Whether to write the current unitcell dimensions to the file.
-# Modified for XTC File Format
+# Start Modification
         step : bool, default=True
             Whether to write the current step to the file.
 # End of Modification
@@ -225,9 +225,7 @@ class _MyBaseReporter(object):
         if self._time:
 # Start Modification
             time = state.getTime()
-            print(time)
             time = time.value_in_unit(units.picoseconds)
-            print(time)
             kwargs['time'] = time
 # End Modification
         if self._cell:
@@ -237,8 +235,7 @@ class _MyBaseReporter(object):
 # Modified for XTC File Format
 #            kwargs['cell_lengths'] = np.array([a, b, c]) 
 #            kwargs['cell_angles'] = np.array([alpha, beta, gamma])
-            kwargs['box'] = np.array([vectors[0], vectors[1], vectors[2]]) 
-            print(kwargs['box'])
+            kwargs['box'] = np.array([vectors[0], vectors[1], vectors[2]])
 #        if self._step: 
 #            kwargs['step'] = simulation.currentStep
 # END of Modification
