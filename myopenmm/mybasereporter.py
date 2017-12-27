@@ -225,9 +225,7 @@ class _MyBaseReporter(object):
         if self._time:
 # Start Modification
             time = state.getTime()
-            print(time)
             time = time.value_in_unit(units.picoseconds)
-            print(time)
             kwargs['time'] = time
 # End Modification
         if self._cell:
@@ -238,7 +236,6 @@ class _MyBaseReporter(object):
 #            kwargs['cell_lengths'] = np.array([a, b, c]) 
 #            kwargs['cell_angles'] = np.array([alpha, beta, gamma])
             kwargs['box'] = np.array([vectors[0], vectors[1], vectors[2]]) 
-            print(kwargs['box'])
 #        if self._step: 
 #            kwargs['step'] = simulation.currentStep
 # END of Modification
