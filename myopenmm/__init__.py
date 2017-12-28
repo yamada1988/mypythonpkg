@@ -1,3 +1,3 @@
 from __future__ import print_function, division
-from . import ReadOpenmmin
+from .ReadInp import InpInfo
 from .xtcreporter import XTCReporter
