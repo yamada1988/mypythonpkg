@@ -1,3 +1,3 @@
 from __future__ import print_function, division
-from .ReadInp import InpInfo
+from .MDCond import MDConductor
 from .xtcreporter import XTCReporter
