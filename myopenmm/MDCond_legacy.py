@@ -8,7 +8,7 @@ from sys import stdout
 import os
 import sys 
 
-class MDConductor:
+class MDConductor_legacy:
     def __init__(self):
         self.InpDict = {'integrator': 'Langevin', 
                         'temperature': 300.0e0, 
@@ -133,7 +133,7 @@ class MDConductor:
         precision = self.precision
         platform = Platform.getPlatformByName(pltfmname)
         if self.platform == 'CUDA':
-            properties = {'CudaPrecision': precision, 'CudaDeviceIndex': '0,1,2,3'}#, 'CudaUseBlockingSync':False, 'CudaDeviceIndex':'0,1,2,3'}
+            properties = {'CudaPrecision': precision}#, 'CudaDeviceIndex': '0,1,2,3'}#, 'CudaUseBlockingSync':False, 'CudaDeviceIndex':'0,1,2,3'}
         elif self.platform == 'CPU':
             properties = {}
         elif self.platform == 'OpenCL':
@@ -245,47 +245,33 @@ class MDConductor:
             with open(inpf, 'rt') as gf:
                 total_lines =[line.strip() for line in gf]
                 try:
-                    core_index = total_lines.index('[ Core ]') + 1
-                    ghost_index = total_lines.index('[ Ghost ]') + 1
-                    solvent_index = total_lines.index('[ Solvent ]') + 1
+                    ghost_index = total_lines.index('[ Ghost ]')
+                    solvent_index = total_lines.index('[ Solvent ]')
                 except:
                     sys.exit('If ghost_particle flag is True, ghost_index file must be specified.\n')
-            core_start = total_lines[core_index].split('-')[0]
-            core_end = total_lines[core_index].split('-')[1]
-            ghost_start = total_lines[ghost_index].split('-')[0]
-            ghost_end = total_lines[ghost_index].split('-')[1]
-            solvent_start = total_lines[solvent_index].split('-')[0]
-            solvent_end = total_lines[solvent_index].split('-')[1]
- 
-            core_particles = range(int(core_start)-1, int(core_end))
-            ghost_particles = range(int(ghost_start)-1, int(ghost_end))
-            solvent_particles = range(int(solvent_start)-1, int(solvent_end))
+            ghost_particles = [int(line)-1 for line in ' '.join(total_lines[ghost_index+1:solvent_index]).split() ]
+            solvent_particles = [int(line)-1 for line in ' '.join(total_lines[solvent_index+1:]).split() ]
+#            print(ghost_particles)
+#            print(solvent_particles)
 
             forces = {system.getForce(index).__class__.__name__: system.getForce(index) for index in range(system.getNumForces())}
             nonbonded_force = forces['NonbondedForce']
 
-            solute_particles = core_particles + ghost_particles
-            slt_param = [[]]*len(solute_particles) 
-            for index in solute_particles:
-                slt_param[index] = nonbonded_force.getParticleParameters(index)
-                if index in ghost_particles:
-                    nonbonded_force.setParticleParameters(index, charge=0.0e0, sigma=slt_param[index][1], epsilon=0.0e0)
+#            print('Before:')
+#            print(nonbonded_force.getNumExceptions())
+#            for i in range(nonbonded_force.getNumExceptions()):
+#                print(nonbonded_force.getExceptionParameters(i))
 
-            for i in ghost_particles:
-                for j in solute_particles:
-                    if i == j:
-                        continue
-                    try:
-                        nonbonded_force.addException(i, j, chargeProd=slt_param[i][0]*slt_param[j][0], 
-                                                           sigma=0.50*(slt_param[i][1]+slt_param[j][1]),
-                                                           epsilon=sqrt(slt_param[i][2]*slt_param[j][2]))
-                    except:
-                        pass
-#                        print('{0:d}-{1:d} pair already prepared.'.format(i, j))
-#            for index in range(nonbonded_force.getNumExceptions()):
-#                print(nonbonded_force.getExceptionParameters(index))
-            
-        
+            for sp in solvent_particles:
+                for gp in ghost_particles:
+                    nonbonded_force.addException(sp, gp, 0.0e0*0.0e0, sigma=1.0e0, epsilon=0.0e0)
+
+#            print('After:')
+#            print(system.getForce(0).getNumExceptions())
+
+#            for i in range(nonbonded_force.getNumExceptions()):
+#                print(nonbonded_force.getExceptionParameters(i))
+                       
 
         # EM simulation
         if self.emflag:
@@ -294,7 +280,7 @@ class MDConductor:
 
             print('Minimizing...')
             empdb = mddir + 'em.pdb'
-            simulation.minimizeEnergy(maxIterations=50)
+            simulation.minimizeEnergy(maxIterations=20)
 
             print('Saving...')
             positions = simulation.context.getState(getPositions=True).getPositions()
@@ -346,13 +332,12 @@ class MDConductor:
 
             if self.nptrecflag:
                 nptlog = mddir + nptname + '.log'
-                simulation.reporters.append(StateDataReporter(nptlog, npteqrecstep*2, time=True,
+                simulation.reporters.append(StateDataReporter(nptlog, npteqrecstep, time=True,
                                                               totalEnergy=True, temperature=True, density=True, 
                                                               progress=True, remainingTime=True, speed=True, 
                                                               totalSteps=nptstep, separator='\t'))
-# checkpoint output function is now commented out.
-#            nptchk = mddir + nptname + '.chk'
-#            simulation.reporters.append(CheckpointReporter(nptchk, npteqrecstep))
+            nptchk = mddir + nptname + '.chk'
+            simulation.reporters.append(CheckpointReporter(nptchk, npteqrecstep))
 
             if self.nptrecflag:
                 print('\nSaving...')
