@@ -1,0 +1,58 @@
+# OpenMM Input Parameters
+integrator = Langevin
+dt         = 0.0020
+friction_const= 1.0
+mdensemble = npt
+temperature= 300.0e0 
+pressure   = 1.0e0 
+pbc         = True
+constraints = AllBonds
+sysfile    = system.gro
+forcefield = topol.top 
+fileformat = GRO
+
+# Equilibriation Process     
+emflag      = True   
+nvtflag     = True   
+nptflag     = True   
+nvtstep     =   50000 
+nptstep     = 5000000 
+mdstep      =   50000 
+
+# Record Input
+nvtrecflag  = True
+nptrecflag  = True   
+mdrecflag   = True   
+simlogflag  = True
+nvteqrecstep =  1000 
+npteqrecstep = 10000
+mdrecstep    =  1000 
+verbose     = True 
+forcerecflag= False
+reporterformat= XTC
+
+# NonBonded Method
+nonbondedmethod = PME
+nonbobded_cutoffflag = True
+nonbonded_cutoff = 1.0e0
+nonbonded_switchflag = True
+nonbonded_switch = 0.80e0
+
+# PME Parameters
+pme-alpha  = 0.0 
+#pme-nx     = 64
+#pme-ny     = 64
+#pme-nz     = 64
+pme-etol   = 1.0e-5
+
+# Advanced Simulation   
+ghost_particle = False
+path_ndxfile = None
+remdflag    = False 
+annealingflag= False
+heavyhydrogen = False 
+removeCMMotion = False 
+
+# Platform Input
+platform = CUDA
+precision = mixed
