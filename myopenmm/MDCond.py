@@ -19,11 +19,12 @@ class MDConductor:
                         'friction_const': 1, 
                         'dt': 0.0020, 
                         'mdensemble' : 'npt',
-                        'pme-alpha' : 0.0, 
+                        'setPME' : False,
+                        'pme-alpha' : 0.026, 
                         'pme-nx' : 64,
                         'pme-ny' : 64,
                         'pme-nz' : 64,
-                        'pme-etol' : 1.0e-5,     
+                        'pme-ftol' : 1.0e-5,     
                         'nvtstep' : 5000, 
                         'nptstep' :50000, 
                         'mdstep' : 50000, 
@@ -83,10 +84,12 @@ class MDConductor:
         self.nvtstep = int(InpDict['nvtstep'])
         self.nptstep = int(InpDict['nptstep'])
         self.mdstep = int(InpDict['mdstep'])
+        self.setPME = strtobool(InpDict['setPME'])
         self.pme_alpha = float(InpDict['pme-alpha'])
         self.pme_nx = int(InpDict['pme-nx'])
         self.pme_ny = int(InpDict['pme-ny'])
         self.pme_nz = int(InpDict['pme-nz'])
+        self.pme_ftol = float(InpDict['pme-ftol'])
         self.nvteqrecstep = int(InpDict['nvteqrecstep'])
         self.npteqrecstep = int(InpDict['npteqrecstep'])
         self.mdrecstep = int(InpDict['mdrecstep'])
@@ -100,7 +103,7 @@ class MDConductor:
         self.simlogstep = int(InpDict['simlogstep'])
         self.verbos = InpDict['verbose']
         self.forcerecflag = strtobool(InpDict['forcerecflag'])
-        self.pbc = InpDict['pbc']
+        self.pbc = strtobool(InpDict['pbc'])
         self.remdflag = strtobool(InpDict['remdflag'])
         self.annealingflag = strtobool(InpDict['annealingflag'])
         self.switchflag = strtobool(InpDict['nonbonded_switchflag'])
@@ -127,13 +130,14 @@ class MDConductor:
     def conduct(self, sysdir='SYS/', 
                 emname='em', nvtname='nvt', nptname='npt', mdname='md', 
                 mddir='MD/'):
-
+        
+        print('conduct start...')
         # Platform input
         pltfmname = self.platform
         precision = self.precision
         platform = Platform.getPlatformByName(pltfmname)
         if self.platform == 'CUDA':
-            properties = {'CudaPrecision': precision, 'CudaDeviceIndex': '0,1,2,3'}#, 'CudaUseBlockingSync':False, 'CudaDeviceIndex':'0,1,2,3'}
+            properties = {'CudaPrecision': precision, 'CudaDeviceIndex': '0,1,2,3'}#, 'CudaUseBlockingSync':False }
         elif self.platform == 'CPU':
             properties = {}
         elif self.platform == 'OpenCL':
@@ -217,14 +221,23 @@ class MDConductor:
                                       nonbondedCutoff=nonbonded_cutoff,
                                       constraints=self.constraints)
 
+        if self.setPME:
+            print('set PME parameters...')
+            forces = {system.getForce(index).__class__.__name__: system.getForce(index) for index in range(system.getNumForces())}
+            forces['NonbondedForce'].setPMEParameters(self.pme_alpha, self.pme_nx, self.pme_ny, self.pme_nz)
+            print('after:')
+            alpha, nx, ny, nz = forces['NonbondedForce'].getPMEParameters()
+            print(alpha)
+            print('nx={0:d}, ny={1:d}, nz={2:d}'.format(nx, ny, nz))
+
 
         if self.switchflag:
-            print('set switching functio...')
+            print('set switching function...')
             nonbonded_switch = self.nonbonded_switch
             forces = {system.getForce(index).__class__.__name__: system.getForce(index) for index in range(system.getNumForces())}
             forces['NonbondedForce'].setUseSwitchingFunction(True)
             forces['NonbondedForce'].setSwitchingDistance(nonbonded_switch)
- 
+
 
         if self.integrator == 'Langevin':
             print('set Langevin Integrator...')
@@ -237,6 +250,7 @@ class MDConductor:
             integrator = VelretIntegrator(dt)
         else:
             sys.exit('Invalid Integrator type. Check your input file.')
+
 
         # Ghost-particle        
         if self.ghost_particle:
@@ -257,7 +271,10 @@ class MDConductor:
             solvent_start = total_lines[solvent_index].split('-')[0]
             solvent_end = total_lines[solvent_index].split('-')[1]
  
-            core_particles = range(int(core_start)-1, int(core_end))
+            if int(core_start) == 0 and int(core_start) == int(core_end):
+                core_particles = range(0,0)
+            else:
+                core_particles = range(int(core_start)-1, int(core_end))
             ghost_particles = range(int(ghost_start)-1, int(ghost_end))
             solvent_particles = range(int(solvent_start)-1, int(solvent_end))
 
@@ -293,8 +310,8 @@ class MDConductor:
             simulation.context.setPositions(gro.positions)
 
             print('Minimizing...')
-            empdb = mddir + 'em.pdb'
-            simulation.minimizeEnergy(maxIterations=50)
+            empdb = mddir + emname + '.pdb'
+            simulation.minimizeEnergy(tolerance = 0.50)
 
             print('Saving...')
             positions = simulation.context.getState(getPositions=True).getPositions()
@@ -392,8 +409,8 @@ class MDConductor:
                                                           totalEnergy=True, temperature=True, density=True, 
                                                           progress=True, remainingTime=True, speed=True, totalSteps=totstep, separator='\t'))
 
-        mdchk = mddir + mdname + '.chk'
-        simulation.reporters.append(CheckpointReporter(mdchk, mdrecstep))
+#        mdchk = mddir + mdname + '.chk'
+#        simulation.reporters.append(CheckpointReporter(mdchk, mdrecstep))
 
         if self.mdrecflag:
             print('\nSaving...')
