@@ -1,6 +1,6 @@
 from PIL import Image, ImageDraw, ImageFont
 
-#
+##
 # Ref. site: https://note.nkmk.me/pillow/
 #
 
