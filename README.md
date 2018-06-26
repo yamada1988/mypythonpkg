@@ -12,6 +12,7 @@ myopenmm/mdrun.py
 実際にmdrunを行うスクリプト。
 
 使い方：
+
 myopenmm/ディレクトリをクローン
 
 PYTHONPATHにmyopenmm/ディレクトリを追加
