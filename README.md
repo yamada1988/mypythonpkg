@@ -13,6 +13,9 @@ myopenmm/mdrun.py
 
 使い方：
 myopenmm/ディレクトリをクローン
+
 PYTHONPATHにmyopenmm/ディレクトリを追加
+
 openmm.inpファイルを作成、各種パラメータ設定を行う
+
 myopenmm/mdrun.pyが使用例スクリプト。
