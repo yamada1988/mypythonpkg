@@ -51,7 +51,7 @@ for k in range(50, 30, -1):
     props = {
     "type": "2_color_scale",
     "max_color": "#FF6347", # tomato
-    "min_color": "#C6EFCE", # lightyellow
+    "min_color": "#3366FF", # lightyellow
     "max_type": "formula",
     "min_type": "formula",
     "max_value": -6.0,
