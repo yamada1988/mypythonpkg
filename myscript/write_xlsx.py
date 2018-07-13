@@ -5,7 +5,10 @@ from xlsxwriter.utility import xl_rowcol_to_cell, xl_range_abs
 mus = arr = [['' for i in range(10)] for j in range(10)]
 #print(mus)
 
-for k in range(50, 49, -1):
+xlsxname = 'DAT/mus.xlsx'
+wb = xlsxwriter.Workbook(xlsxname)
+
+for k in range(50, 30, -1):
     dirname = 'MELT_{0:03d}'.format(k)
     mus = arr = [['' for i in range(10)] for j in range(10)]
     for i in range(1, 11):
@@ -18,8 +21,6 @@ for k in range(50, 49, -1):
 
     print(mus)
 
-    fname = 'DAT/mus_{0:03d}.xlsx'.format(k)
-    wb = xlsxwriter.Workbook(fname)
     ws = wb.add_worksheet("mus_{0:03d}".format(k))
     # header
     header_row = ['', 'refs=1', 'refs=2', 'refs=3', 'refs=4', 'refs=5', 'refs=6', 'refs=7', 'refs=8', 'refs=9', 'refs=10', 'Average', 'Stdev', '95%error']
@@ -61,4 +62,4 @@ for k in range(50, 49, -1):
     ws.write_formula(12, 12, '=STDEV(B2:K11)')
     ws.write_formula(12, 13, '=STDEV(B2:K11)*2.0/sqrt(100)')
 
-    wb.close()
+wb.close()
