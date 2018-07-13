@@ -50,8 +50,8 @@ for k in range(50, 30, -1):
 #    min_cell = xl_rowcol_to_cell(1, 7, row_abs=True, col_abs=True)
     props = {
     "type": "2_color_scale",
-    "max_color": "#FF6347", # tomato
-    "min_color": "#3366FF", # lightyellow
+    "max_color": "#FF0000", # tomato
+    "min_color": "#00FF00", # lightyellow
     "max_type": "formula",
     "min_type": "formula",
     "max_value": -6.0,
