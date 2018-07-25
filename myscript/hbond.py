@@ -21,7 +21,7 @@ def printHbond(list, atom_pairs, frame, t, dt, index, selfflag=False):
                     print('time:{0:8.5f}ps \t r:{1:7.5f}nm'.format(time, list[f][i]))
 
 def calcHbond(list, atom_indices, atom_pairs, frame, t, dt, index, selfflag=False):
-    print('calculate Hbonds...')
+    print('check Hbonds...')
     if not selfflag:
         nbond = [[0 for raw in range(len(atom_indices)+1)] for f in range(frame)]
         for f in range(frame):
@@ -45,19 +45,39 @@ def calcHbond(list, atom_indices, atom_pairs, frame, t, dt, index, selfflag=Fals
 
 def writeHbond(list, fname):
     with open(fname, 'a+') as f:
-        for t,line in enumerate(list):
-            str_ = '\t'.join(map(str, list[t]))
+        for i,line in enumerate(list):
+            str_ = '\t'.join(map(str, list[i]))
             f.write(str_+'\n')
 
+
+def calc_ave(fname):
+    with open(fname, 'rt') as f:
+        lines = [map(float, line.split()) for line in f if not line.startswith('#')]
+        n_data = len(lines)
+        aves = []
+        for r in range(1, len(lines[0])):
+            raw = [raw[r] for raw in lines]
+            print('raw')
+            print(raw)
+            sum_ = sum(raw)
+            ave_ = sum_ / n_data
+            aves.append(ave_)
+        print(aves)
+    with open(fname, 'a+') as f:
+        str_ = '\t' + '\t'.join(map(str, aves))
+        f.write(str_ + '\n')
+         
 
 dt     = 0.10
 nstart = 1
 nend   = 16
 ncore  = 752
 n_monomer = 15
+tot_frame = 40
+nsep   = 10
 tname  = '../pdbdir/em.pdb'
 
-fname  = 'MD/md001_1.xtc'
+fname  = 'MD/md001_sep.xtc'
 honame = 'DAT/hobond_sep.dat'
 ohname = 'DAT/ohbond_sep.dat'
 hoselfname = 'DAT/hobondself_sep.dat'
@@ -103,7 +123,8 @@ atom_pairsHO_self = topology.select_pairs(atom_indicesH_g, atom_indicesO_c)
 atom_pairsOH_self = topology.select_pairs(atom_indicesO_g, atom_indicesH_c)
 
 print('load trajectory: ' + fname+' ...')
-for t,chunk in enumerate(md.iterload(fname, top=tname, chunk=10)):
+for t,chunk in enumerate(md.iterload(fname, top=tname, chunk=tot_frame/nsep)):
+    t += 1
     print('chunk:', t)
     print('calculate rHO and rOH...')
     rHO = md.compute_distances(chunk, atom_pairsHO)
@@ -123,7 +144,6 @@ for t,chunk in enumerate(md.iterload(fname, top=tname, chunk=10)):
 
     hbondHO = calcHbond(rHO, atom_indicesH_g, atom_pairsHO, frame, t, dt, 'HO')
     writeHbond(hbondHO, honame) 
-
     hbondOH = calcHbond(rOH, atom_indicesO_g, atom_pairsOH, frame, t, dt, 'OH')
     writeHbond(hbondOH, ohname) 
 
@@ -133,3 +153,5 @@ for t,chunk in enumerate(md.iterload(fname, top=tname, chunk=10)):
     hbondOHself = calcHbond(rOH_self, atom_indicesO_g, atom_pairsOH_self, frame, t, dt, 'OH', selfflag=True)
     writeHbond(hbondOHself, ohselfname)
 
+for fname in [honame, ohname, hoselfname, ohselfname]:
+    calc_ave(fname)
