@@ -43,7 +43,7 @@ def calcHbondSelf(list, atom_indices, atom_pairs, frame, t, dt, index):
                     nbond[f][j+1] += 1
     return nbond
 
-def writeHbond(list, fname)
+def writeHbond(list, fname):
     with open(fname, 'a+') as f:
         for t,line in enumerate(list):
             str_ = '\t'.join(map(str, list[t]))
@@ -83,6 +83,12 @@ with open(honame, 'wt') as f:
 str_Og = '# time\t'+'\t'.join(map(str, atom_indicesO_g))
 with open(ohname, 'wt') as f:
     f.write(str_Og+'\n')
+with open(hoselfname, 'wt') as f:
+    f.write(str_Hg+'\n')
+str_Og = '# time\t'+'\t'.join(map(str, atom_indicesO_g))
+with open(ohselfname, 'wt') as f:
+    f.write(str_Og+'\n')
+
 
 atom_indicesH_c = [ index for index in atom_indicesH if not index in ghost and index in core]
 atom_indicesO_c = [ index for index in atom_indicesO if not index in ghost and index in core]
@@ -109,33 +115,20 @@ for t,chunk in enumerate(md.iterload(fname, top=tname, chunk=100)):
     print('check hbond information...')
     frame = chunk.n_frames 
     print('frame:', frame)
-    printHbond(rHO, atom_pairsHO, frame, t, dt, 'HO')
+#    printHbond(rHO, atom_pairsHO, frame, t, dt, 'HO')
 #    printHbond(rOH, atom_pairsOH, frame, t, dt, 'OH')
 
 #    printHbondSelf(rHO_self, atom_pairsHO_self, frame, t, dt, 'HO_self')
 #    printHbondSelf(rOH_self, atom_pairsOH_self, frame, t, dt, 'OH_self')
 
     hbondHO = calcHbond(rHO, atom_indicesH_g, atom_pairsHO, frame, t, dt, 'HO')
-    with open(honame, 'a+') as f:
-        for t,line in enumerate(hbondHO):
-            str_HO = '\t'.join(map(str, hbondHO[t]))
-            f.write(str_HO+'\n')
+    writeHbond(hbondHO, honame) 
 
     hbondOH = calcHbond(rOH, atom_indicesO_g, atom_pairsOH, frame, t, dt, 'OH')
-    with open(ohname, 'a+') as f:
-        for t,line in enumerate(hbondOH):
-            str_OH = '\t'.join(map(str, hbondOH[t]))
-            f.write(str_OH+'\n')
+    writeHbond(hbondOH, ohname) 
 
     hbondHOself = calcHbondSelf(rHO, atom_indicesH_g, atom_pairsHO, frame, t, dt, 'HO')
-    with open(honame, 'a+') as f:
-        for t,line in enumerate(hbondHO):
-            str_HO = '\t'.join(map(str, hbondHO[t]))
-            f.write(str_HO+'\n')
+    writeHbond(hbondHOSelf, hoselfname)
 
     hbondOHSelf = calcHbondSelf(rOH, atom_indicesO_g, atom_pairsOH, frame, t, dt, 'OH')
-    writeHbond(hbondOHSelf)
-        for t,line in enumerate(hbondOH):
-            str_OH = '\t'.join(map(str, hbondOH[t]))
-            f.write(str_OH+'\n')
-
+    writeHbond(hbondOHSelf, ohselfname)
