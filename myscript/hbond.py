@@ -1,47 +1,47 @@
 import mdtraj as md
 from pandas import DataFrame
 
-def printHbond(list, atom_pairs, frame, t, dt, index):
+def printHbond(list, atom_pairs, frame, t, dt, index, selfflag=False):
     print('print HObonds...')
-    for f in range(frame):
-        time = t * frame * dt + f * dt
-        for i in range(len(list[f])):
-            if list[f][i] < 0.30:
-                print('pairs'+index+':{0:d}\t{1:d}'.format(atom_pairs[i][0], atom_pairs[i][1]))
-                print('time:{0:8.5f}ps \t r:{1:7.5f}nm'.format(time, list[f][i]))
+    if not selfflag:
+        print('avoid self-chain...')
+        for f in range(frame):
+            time = t * frame * dt + f * dt
+            for i in range(len(list[f])):
+                if list[f][i] < 0.30:
+                    print('pairs'+index+':{0:d}\t{1:d}'.format(atom_pairs[i][0], atom_pairs[i][1]))
+                    print('time:{0:8.5f}ps \t r:{1:7.5f}nm'.format(time, list[f][i]))
+    else:
+        print('print self-chain...')
+        for f in range(frame):
+            time = t * frame * dt + f * dt
+            for i in range(len(list[f])):
+                if list[f][i] < 0.30 and abs(atom_pairs[i][0]- atom_pairs[i][1]) > n_monomer * 2:
+                    print('pairs'+index+':{0:d}\t{1:d}'.format(atom_pairs[i][0], atom_pairs[i][1]))
+                    print('time:{0:8.5f}ps \t r:{1:7.5f}nm'.format(time, list[f][i]))
 
-def printHbondSelf(list, atom_pairs, frame, t, dt, index):
-    print('print OHbonds...')
-    for f in range(frame):
-        time = t * frame * dt + f * dt
-        for i in range(len(list[f])):
-            if list[f][i] < 0.30 and abs(atom_pairs[i][0]- atom_pairs[i][1]) > n_monomer * 2:
-                print('pairs'+index+':{0:d}\t{1:d}'.format(atom_pairs[i][0], atom_pairs[i][1]))
-                print('time:{0:8.5f}ps \t r:{1:7.5f}nm'.format(time, list[f][i]))
-
-def calcHbond(list, atom_indices, atom_pairs, frame, t, dt, index):
+def calcHbond(list, atom_indices, atom_pairs, frame, t, dt, index, selfflag=False):
     print('calculate Hbonds...')
-    nbond = [[0 for raw in range(len(atom_indices)+1)] for f in range(frame)]
-    for f in range(frame):
-        time = t * frame * dt + f * dt
-        nbond[f][0] = time
-        for i in range(len(list[f])):
-            for j,atm in enumerate(atom_indices):
-                if list[f][i] < 0.30 and atom_pairs[i][0] == atm:
-                    nbond[f][j+1] += 1
+    if not selfflag:
+        nbond = [[0 for raw in range(len(atom_indices)+1)] for f in range(frame)]
+        for f in range(frame):
+            time = t * frame * dt + f * dt
+            nbond[f][0] = time
+            for i in range(len(list[f])):
+                for j,atm in enumerate(atom_indices):
+                    if list[f][i] < 0.30 and atom_pairs[i][0] == atm:
+                        nbond[f][j+1] += 1
+    else:
+        nbond = [[0 for raw in range(len(atom_indices)+1)] for f in range(frame)]
+        for f in range(frame):
+            time = t * frame * dt + f * dt
+            nbond[f][0] = time
+            for i in range(len(list[f])):
+                for j,atm in enumerate(atom_indices):
+                    if list[f][i] < 0.30 and abs(atom_pairs[i][0]- atom_pairs[i][1]) > n_monomer * 2 and atom_pairs[i][0] == atm:
+                        nbond[f][j+1] += 1
     return nbond
 
-def calcHbondSelf(list, atom_indices, atom_pairs, frame, t, dt, index):
-    print('calculate Hbonds for selfchain...')
-    nbond = [[0 for raw in range(len(atom_indices)+1)] for f in range(frame)]
-    for f in range(frame):
-        time = t * frame * dt + f * dt
-        nbond[f][0] = time
-        for i in range(len(list[f])):
-            for j,atm in enumerate(atom_indices):
-                if list[f][i] < 0.30 and abs(atom_pairs[i][0]- atom_pairs[i][1]) > n_monomer * 2 and atom_pairs[i][0] == atm:
-                    nbond[f][j+1] += 1
-    return nbond
 
 def writeHbond(list, fname):
     with open(fname, 'a+') as f:
@@ -57,7 +57,7 @@ ncore  = 752
 n_monomer = 15
 tname  = '../pdbdir/em.pdb'
 
-fname  = 'MD/md001_sep.xtc'
+fname  = 'MD/md001_1.xtc'
 honame = 'DAT/hobond_sep.dat'
 ohname = 'DAT/ohbond_sep.dat'
 hoselfname = 'DAT/hobondself_sep.dat'
@@ -103,7 +103,7 @@ atom_pairsHO_self = topology.select_pairs(atom_indicesH_g, atom_indicesO_c)
 atom_pairsOH_self = topology.select_pairs(atom_indicesO_g, atom_indicesH_c)
 
 print('load trajectory: ' + fname+' ...')
-for t,chunk in enumerate(md.iterload(fname, top=tname, chunk=100)):
+for t,chunk in enumerate(md.iterload(fname, top=tname, chunk=10)):
     print('chunk:', t)
     print('calculate rHO and rOH...')
     rHO = md.compute_distances(chunk, atom_pairsHO)
@@ -118,8 +118,8 @@ for t,chunk in enumerate(md.iterload(fname, top=tname, chunk=100)):
 #    printHbond(rHO, atom_pairsHO, frame, t, dt, 'HO')
 #    printHbond(rOH, atom_pairsOH, frame, t, dt, 'OH')
 
-#    printHbondSelf(rHO_self, atom_pairsHO_self, frame, t, dt, 'HO_self')
-#    printHbondSelf(rOH_self, atom_pairsOH_self, frame, t, dt, 'OH_self')
+#    printHbond(rHO_self, atom_pairsHO_self, frame, t, dt, 'HO_self', selfflag=True)
+#    printHbond(rOH_self, atom_pairsOH_self, frame, t, dt, 'OH_self', selfflag=True)
 
     hbondHO = calcHbond(rHO, atom_indicesH_g, atom_pairsHO, frame, t, dt, 'HO')
     writeHbond(hbondHO, honame) 
@@ -127,8 +127,9 @@ for t,chunk in enumerate(md.iterload(fname, top=tname, chunk=100)):
     hbondOH = calcHbond(rOH, atom_indicesO_g, atom_pairsOH, frame, t, dt, 'OH')
     writeHbond(hbondOH, ohname) 
 
-    hbondHOself = calcHbondSelf(rHO, atom_indicesH_g, atom_pairsHO, frame, t, dt, 'HO')
-    writeHbond(hbondHOSelf, hoselfname)
+    hbondHOself = calcHbond(rHO_self, atom_indicesH_g, atom_pairsHO_self, frame, t, dt, 'HO', selfflag=True)
+    writeHbond(hbondHOself, hoselfname)
 
-    hbondOHSelf = calcHbondSelf(rOH, atom_indicesO_g, atom_pairsOH, frame, t, dt, 'OH')
-    writeHbond(hbondOHSelf, ohselfname)
+    hbondOHself = calcHbond(rOH_self, atom_indicesO_g, atom_pairsOH_self, frame, t, dt, 'OH', selfflag=True)
+    writeHbond(hbondOHself, ohselfname)
+
