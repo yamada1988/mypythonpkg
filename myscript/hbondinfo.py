@@ -6,7 +6,7 @@ def printHbond(list, atom_pairs, frame, t, dt, index, selfflag=False):
     if not selfflag:
         print('avoid self-chain...')
         for f in range(frame):
-            time = t * frame * dt + f * dt
+            time = (t-1) * frame * dt + f * dt
             for i in range(len(list[f])):
                 if list[f][i] < 0.30:
                     print('pairs'+index+':{0:d}\t{1:d}'.format(atom_pairs[i][0], atom_pairs[i][1]))
@@ -14,35 +14,51 @@ def printHbond(list, atom_pairs, frame, t, dt, index, selfflag=False):
     else:
         print('print self-chain...')
         for f in range(frame):
-            time = t * frame * dt + f * dt
+            time = (t-1) * frame * dt + f * dt
             for i in range(len(list[f])):
                 if list[f][i] < 0.30 and abs(atom_pairs[i][0]- atom_pairs[i][1]) > n_monomer * 2:
                     print('pairs'+index+':{0:d}\t{1:d}'.format(atom_pairs[i][0], atom_pairs[i][1]))
                     print('time:{0:8.5f}ps \t r:{1:7.5f}nm'.format(time, list[f][i]))
 
-def calcHbondinfo(list, atom_pairs, frame, t, dt, index, selfflag=False):
+def make_nopbc(list, Lbox):
+    for i in [0, 1, 2]:
+        if list[i] > Lbox:
+            list[i] -= Lbox
+        elif list[i] < 0:
+            list[i] += Lbox
+    return list
+
+    
+def calcHbondinfo(traj, list, atom_pairs, frame, t, dt, index, selfflag=False):
     print('check Hbonds of '+index+'...')
     if not selfflag:
         bondinfo = []
         for f in range(frame):
-            time = t * frame * dt + f * dt
+            time = (t-1) * frame * dt + f * dt
+            Lbox = traj.unitcell_vectors[f][0][0]
             for i in range(len(list[f])):
                 if list[f][i] < 0.30 :
                     atom_pair1 = atom_pairs[i][0]
                     atom_pair2 = atom_pairs[i][1]
-                    r = list[f][i]
-                    line = '\t'.join(map(str, [time, atom_pair1, atom_pair2, r]))
+                    r = '{0:6.4f}'.format(list[f][i])
+                    r1 = make_nopbc(traj.xyz[f][atom_pair1], Lbox)
+                    r2 = make_nopbc(traj.xyz[f][atom_pair2], Lbox)
+                    list_ = [time, atom_pair1, atom_pair2, r, r1[0], r1[1], r1[2], r2[0], r2[1], r2[2]]
+                    line = '\t'.join(map(str, list_))
                     bondinfo.append(line)         
     else:
         bondinfo = []
         for f in range(frame):
-            time = t * frame * dt + f * dt
+            time = (t-1) * frame * dt + f * dt
             for i in range(len(list[f])):
                 if list[f][i] < 0.30 and abs(atom_pairs[i][0]- atom_pairs[i][1]) > n_monomer * 2:
                     atom_pair1 = atom_pairs[i][0]
                     atom_pair2 = atom_pairs[i][1]
-                    r = list[f][i]
-                    line = '\t'.join(map(str, [time, atom_pair1, atom_pair2, r]))
+                    r = '{0:6.4f}'.format(list[f][i])
+                    r1 = make_nopbc(traj.xyz[f][atom_pair1])
+                    r2 = make_nopbc(traj.xyz[f][atom_pair2])
+                    list_ = [time, atom_pair1, atom_pair2, r, r1[0], r1[1], r1[2], r2[0], r2[1], r2[2]]
+                    line = '\t'.join(map(str, list_))
                     bondinfo.append(line) 
     return bondinfo
 
@@ -58,7 +74,7 @@ nstart = 1
 nend   = 16
 ncore  = 752
 n_monomer = 15
-tot_frame = 500
+tot_frame = 5000
 nsep   = 10
 i1 = 1
 i2 = 1
@@ -85,7 +101,7 @@ for k in range(i1, i2+1):
     hoselfname = 'DAT/hobondselfinfo_{0:03d}.dat'.format(k)
     ohselfname = 'DAT/ohbondselfinfo_{0:03d}.dat'.format(k)
 
-    str_ = '# data loaded in '+fname+'\n# time\tpair1\tpair2\tr (nm)'
+    str_ = '# data loaded in '+fname+'\n# time\tpair1\tpair2\tr (nm)\tx1\ty1\tz1\tx2\ty2\tz2'
     with open(honame, 'wt') as f:
         f.write(str_+'\n')
     with open(ohname, 'wt') as f:
@@ -135,15 +151,15 @@ for k in range(i1, i2+1):
 #    printHbond(rHO_self, atom_pairsHO_self, frame, t, dt, 'HO_self', selfflag=True)
 #    printHbond(rOH_self, atom_pairsOH_self, frame, t, dt, 'OH_self', selfflag=True)
 
-        hbondHO = calcHbondinfo(rHO, atom_pairsHO, frame, t, dt, 'HO')
+        hbondHO = calcHbondinfo(chunk, rHO, atom_pairsHO, frame, t, dt, 'HO')
         writeHbond(hbondHO, honame) 
 
-        hbondOH = calcHbondinfo(rOH, atom_pairsOH, frame, t, dt, 'OH')
+        hbondOH = calcHbondinfo(chunk, rOH, atom_pairsOH, frame, t, dt, 'OH')
         writeHbond(hbondOH, ohname) 
 
-        hbondHOself = calcHbondinfo(rHO_self, atom_pairsHO_self, frame, t, dt, 'HO', selfflag=True)
+        hbondHOself = calcHbondinfo(chunk, rHO_self, atom_pairsHO_self, frame, t, dt, 'HO', selfflag=True)
         writeHbond(hbondHOself, hoselfname)
 
-        hbondOHself = calcHbondinfo(rOH_self, atom_pairsOH_self, frame, t, dt, 'OH', selfflag=True)
+        hbondOHself = calcHbondinfo(chunk, rOH_self, atom_pairsOH_self, frame, t, dt, 'OH', selfflag=True)
         writeHbond(hbondOHself, ohselfname)
 
