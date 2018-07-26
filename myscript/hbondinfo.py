@@ -101,7 +101,7 @@ for k in range(i1, i2+1):
     hoselfname = 'DAT/hobondselfinfo_{0:03d}.dat'.format(k)
     ohselfname = 'DAT/ohbondselfinfo_{0:03d}.dat'.format(k)
 
-    str_ = '# data loaded in '+fname+'\n# time\tpair1\tpair2\tr (nm)\tx1\ty1\tz1\tx2\ty2\tz2'
+    str_ = '# data loaded in '+fname+'\n# time\tpair1\tpair2\tr (nm)\tx1\ty1\tz1\tx2\ty2\tz2\tLbox'
     with open(honame, 'wt') as f:
         f.write(str_+'\n')
     with open(ohname, 'wt') as f:
