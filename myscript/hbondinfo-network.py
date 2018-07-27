@@ -45,7 +45,7 @@ def calcHbondinfo(traj, list, atom_pairs, frame, t, dt, index, selfflag=False):
                     r1 = make_nopbc(traj.xyz[f][atom_pair1], Lbox)
                     r2 = make_nopbc(traj.xyz[f][atom_pair2], Lbox)
                     list_ = [time, atom_pair1, atom_pair2, r, r1[0], r1[1], r1[2], r2[0], r2[1], r2[2], Lbox]
-                     line = '\t'.join(map(str, list_))
+                    line = '\t'.join(map(str, list_))
                     bondinfo.append(line)         
     else:
         bondinfo = []
