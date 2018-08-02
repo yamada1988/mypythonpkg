@@ -1,3 +1,5 @@
+# https://xlsxwriter.readthedocs.io/index.html
+# conda install XlsxWriter   
 import xlsxwriter
 from xlsxwriter.utility import xl_rowcol_to_cell, xl_range_abs
 
