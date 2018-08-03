@@ -4,9 +4,16 @@ from distutils.util import strtobool
 from simtk.openmm.app import *
 from simtk.openmm import *
 from simtk.unit import *
+import parmed as pmd
 from sys import stdout
 import os
+import os.path
 import sys 
+
+#  Requirement:
+#  python 3.X, openmm, mdtraj, parmed
+#
+
 
 class MDConductor:
     def __init__(self):
@@ -25,18 +32,18 @@ class MDConductor:
                         'pme-ny' : 64,
                         'pme-nz' : 64,
                         'pme-ftol' : 1.0e-5,     
-                        'nvtstep' : 5000, 
-                        'nptstep' :50000, 
-                        'mdstep' : 50000, 
-                        'nvteqrecstep' : 500, 
-                        'npteqrecstep' : 500,
-                        'mdrecstep' : 500, 
-                        'emflag' : True, 
-                        'nvtflag' : True, 
-                        'nptflag' : True, 
-                        'nvtrecflag' : True, 
-                        'nptrecflag' : True, 
-                        'mdrecflag' :  True, 
+                        'nvtstep' : 0, 
+                        'nptstep' : 0, 
+                        'mdstep' :  0, 
+                        'nvteqrecstep' : 0, 
+                        'npteqrecstep' : 0,
+                        'mdrecstep' : 0, 
+                        'emflag' : False, 
+                        'nvtflag' : False, 
+                        'nptflag' : False, 
+                        'nvtrecflag' : False, 
+                        'nptrecflag' : False, 
+                        'mdrecflag' :  False, 
                         'simlogflag' : True, 
                         'simlogstep' : 500,
                         'verbose' : True, 
@@ -56,7 +63,8 @@ class MDConductor:
                         'ghost_particle' : False,
                         'path_ndxfile' : None,
                         'platform' : 'CUDA', 
-                        'precision' : 'double'}
+                        'precision' : 'double',
+                        'recflag': False}
         
         print('Initialize...')               
     def loadFile(self, file):
@@ -68,6 +76,13 @@ class MDConductor:
         with open(file, 'rt') as f:
             InpDict = {line.split('=')[0].strip() : line.split('=')[1].strip() \
                            for line in f if "#" not in line and "=" in line}
+
+        for k in InpDict:
+            v = InpDict[k]
+            if v == 'False':
+                InpDict[k] = False
+            elif v == 'True':
+                InpDict[k] = True
 
         self.InpDict.update(InpDict)
         InpDict = self.InpDict 
@@ -84,7 +99,7 @@ class MDConductor:
         self.nvtstep = int(InpDict['nvtstep'])
         self.nptstep = int(InpDict['nptstep'])
         self.mdstep = int(InpDict['mdstep'])
-        self.setPME = strtobool(InpDict['setPME'])
+        self.setPME = InpDict['setPME']
         self.pme_alpha = float(InpDict['pme-alpha'])
         self.pme_nx = int(InpDict['pme-nx'])
         self.pme_ny = int(InpDict['pme-ny'])
@@ -93,32 +108,33 @@ class MDConductor:
         self.nvteqrecstep = int(InpDict['nvteqrecstep'])
         self.npteqrecstep = int(InpDict['npteqrecstep'])
         self.mdrecstep = int(InpDict['mdrecstep'])
-        self.emflag = strtobool(InpDict['emflag'])
-        self.nvtflag = strtobool(InpDict['nvtflag'])
-        self.nptflag = strtobool(InpDict['nptflag'])
-        self.nvtrecflag = strtobool(InpDict['nvtrecflag'])
-        self.nptrecflag = strtobool(InpDict['nptrecflag'])
-        self.mdrecflag = strtobool(InpDict['mdrecflag'])
-        self.simlogflag = strtobool(InpDict['simlogflag'])
+        self.emflag = InpDict['emflag']
+        self.nvtflag = InpDict['nvtflag']
+        self.nptflag = InpDict['nptflag']
+        self.nvtrecflag = InpDict['nvtrecflag']
+        self.nptrecflag = InpDict['nptrecflag']
+        self.mdrecflag = InpDict['mdrecflag']
+        self.simlogflag = InpDict['simlogflag']
         self.simlogstep = int(InpDict['simlogstep'])
         self.verbos = InpDict['verbose']
-        self.forcerecflag = strtobool(InpDict['forcerecflag'])
-        self.pbc = strtobool(InpDict['pbc'])
-        self.remdflag = strtobool(InpDict['remdflag'])
-        self.annealingflag = strtobool(InpDict['annealingflag'])
-        self.switchflag = strtobool(InpDict['nonbonded_switchflag'])
+        self.forcerecflag = InpDict['forcerecflag']
+        self.pbc = InpDict['pbc']
+        self.remdflag = InpDict['remdflag']
+        self.annealingflag = InpDict['annealingflag']
+        self.switchflag = InpDict['nonbonded_switchflag']
         self.nonbonded_switch = float(InpDict['nonbonded_switch'])
         self.reporterformat = InpDict['reporterformat']
         self.constraints = InpDict['constraints']
         self.nonbonded_method = InpDict['nonbonded_method']
         self.nonbonded_cutoffflag = InpDict['nonbonded_cutoffflag']
         self.nonbonded_cutoff = float(InpDict['nonbonded_cutoff'])
-        self.heavyhydrogen = strtobool(InpDict['heavyhydrogen'])
+        self.heavyhydrogen = InpDict['heavyhydrogen']
         self.removeCMMotion = InpDict['removeCMMotion'] 
-        self.ghost_particle = strtobool(InpDict['ghost_particle'])
+        self.ghost_particle = InpDict['ghost_particle']
         self.path_ndxfile = InpDict['path_ndxfile']
         self.platform = InpDict['platform']
         self.precision = InpDict['precision']
+        self.recflag = InpDict['recflag']
 
         with open('openmm.out', 'wt') as f:
             print('writing openmm.out...')
@@ -127,21 +143,19 @@ class MDConductor:
                 f.write('{0}:{1}\n'.format(k, v))
 
 
-    def conduct(self, sysdir='SYS/', 
-                emname='em', nvtname='nvt', nptname='npt', mdname='md', 
-                mddir='MD/'):
+    def preparation(self, sysdir='SYS/', mddir='MD/'):
         
-        print('conduct start...')
+        print('preparation start...')
         # Platform input
         pltfmname = self.platform
         precision = self.precision
-        platform = Platform.getPlatformByName(pltfmname)
+        self.pltform = Platform.getPlatformByName(pltfmname)
         if self.platform == 'CUDA':
-            properties = {'CudaPrecision': precision, 'CudaDeviceIndex': '0,1,2,3'}#, 'CudaUseBlockingSync':False }
+            self.properties = {'CudaPrecision': precision}#, 'CudaDeviceIndex': '0,1'}#, 'CudaUseBlockingSync':False }
         elif self.platform == 'CPU':
-            properties = {}
+            self.properties = {}
         elif self.platform == 'OpenCL':
-            properties = {'OpenCLPrecision': precision}#, 'OpenCLDeviceIndex': '0,1,2,3'}
+            self.properties = {'OpenCLPrecision': precision}#, 'OpenCLDeviceIndex': '0,1,2,3'}
 
 
         # System input
@@ -151,6 +165,9 @@ class MDConductor:
         # System output
         mddir = 'MD/'
 
+        return sysgro, systop
+
+    def setup(self, sysgro, systop):
         # Simulation setting
         if self.temperature:
             temperature = self.temperature * kelvin
@@ -163,39 +180,21 @@ class MDConductor:
         if self.pressure:
             pressure = self.pressure * bar
 
-        if self.nvtflag:
-            nvtstep = self.nvtstep  
-        else:
-            nvtstep = 0 
+        # Create gro
+        root, ext = os.path.splitext(sysgro)
+        if ext == '.gro':
+            gro = GromacsGroFile(sysgro)
+        elif ext == '.pdb':
+            gro = PDBFile(sysgro) 
 
-        if self.nptflag:
-            nptstep = self.nptstep
-        else: 
-            nptstep = 0
-        
-        mdstep  = self.mdstep
-
-        totstep = nvtstep + nptstep + mdstep 
-
-        if self.nvtrecflag:
-            nvteqrecstep = self.nvteqrecstep
-        if self.nptrecflag:
-            npteqrecstep = self.npteqrecstep
-        if self.mdrecflag:
-            mdrecstep =  self.mdrecstep
-
-        if self.simlogflag:
-            simlogstep = self.simlogstep
-
-
-        # Simulation Setting
-        gro = GromacsGroFile(sysgro)
+        # Create top
         if self.pbc:
             print('set periodic boundary condition...')
-            top = GromacsTopFile(systop, periodicBoxVectors=gro.getPeriodicBoxVectors())
+            if ext == '.gro':
+                top = GromacsTopFile(systop, periodicBoxVectors=gro.getPeriodicBoxVectors())
         else:
-            top = GromacsTopFile(systop)
-
+            if ext == 'gro':
+                top = GromacsTopFile(systop)
        
         if self.heavyhydrogen:
             print('Hydrogen Mass Repartitioning...')
@@ -204,6 +203,7 @@ class MDConductor:
             hmass = 1*amu
 
 
+        # Create system
         if self.nonbonded_method == 'PME':
             print('set PME...')
             if self.nonbonded_cutoffflag:
@@ -221,6 +221,43 @@ class MDConductor:
                                       nonbondedCutoff=nonbonded_cutoff,
                                       constraints=self.constraints)
 
+        # Check ensembleflag
+        if self.nvtflag:
+            nvtstep = self.nvtstep  
+        else:
+            nvtstep = 0
+
+        if self.nptflag:
+            nptstep = self.nptstep
+            print('add MonteCarlo Barostat...')
+            system.addForce(MonteCarloBarostat(pressure, temperature))
+        else:
+            nptstep = 0       
+
+        self.steps = nvtstep + nptstep 
+
+        if self.nvtrecflag:
+            nvteqrecstep = self.nvteqrecstep
+            self.recflag = True
+        else:
+            nvteqrecstep = 0
+        if self.nptrecflag:
+            npteqrecstep = self.npteqrecstep
+            self.recflag = True
+        else:
+            npteqrecstep = 0
+
+        if self.mdrecflag:
+            mdrecstep =  self.mdrecstep
+            self.recflag = True
+        else:
+            mdrecstep = 0
+        self.recstep = nvteqrecstep + npteqrecstep + mdrecstep
+
+        if self.simlogflag:
+            simlogstep = self.simlogstep
+
+
         if self.setPME:
             print('set PME parameters...')
             forces = {system.getForce(index).__class__.__name__: system.getForce(index) for index in range(system.getNumForces())}
@@ -230,7 +267,6 @@ class MDConductor:
             print(alpha)
             print('nx={0:d}, ny={1:d}, nz={2:d}'.format(nx, ny, nz))
 
-
         if self.switchflag:
             print('set switching function...')
             nonbonded_switch = self.nonbonded_switch
@@ -238,19 +274,18 @@ class MDConductor:
             forces['NonbondedForce'].setUseSwitchingFunction(True)
             forces['NonbondedForce'].setSwitchingDistance(nonbonded_switch)
 
-
+        # Create integrator
         if self.integrator == 'Langevin':
             print('set Langevin Integrator...')
             integrator = LangevinIntegrator(temperature, fric_const, dt) 
         elif self.integrator == 'Brownian':
             print('set Brownian Integrator...')
             integrator = BrownianIntegrator(temperature, fric_const, dt)
-        elif self.integrator == 'Velret':
+        elif self.integrator == 'Verlet':
             print('set Verlet Integrator...')
-            integrator = VelretIntegrator(dt)
+            integrator = VerletIntegrator(dt)
         else:
             sys.exit('Invalid Integrator type. Check your input file.')
-
 
         # Ghost-particle        
         if self.ghost_particle:
@@ -302,122 +337,69 @@ class MDConductor:
 #            for index in range(nonbonded_force.getNumExceptions()):
 #                print(nonbonded_force.getExceptionParameters(index))
             
-        
+        # Create simulation
+        simulation = Simulation(top.topology, system, integrator, self.pltform, self.properties)
+        simulation.context.setPositions(gro.positions)
+        return simulation
 
-        # EM simulation
-        if self.emflag:
-            simulation = Simulation(top.topology, system, integrator, platform, properties)
-            simulation.context.setPositions(gro.positions)
+    # EM simulation
+    def minimize(self, simulation, emname, index, mddir='MD'):
+        emname = emname + index
 
-            print('Minimizing...')
-            empdb = mddir + emname + '.pdb'
-            simulation.minimizeEnergy(tolerance = 0.50)
+        print('Minimizing...')
+        empdb = mddir + emname + '.pdb'
+        simulation.minimizeEnergy(maxIterations=2000)
 
-            print('Saving...')
-            positions = simulation.context.getState(getPositions=True).getPositions()
-            PDBFile.writeFile(simulation.topology, positions, open(empdb, 'w'))
+        print('Check Energy...')
+        state = simulation.context.getState(getEnergy=True)
+        energyval = state.getPotentialEnergy()
+        print(energyval)
+        eneval = energyval / (kilojoule/mole)
+        if eneval > 1.0e+14:
+            sys.exit('Energy diverges at infinity.')
 
-        # NVT simulation
-        if self.nvtflag:
-            print ('NVT Simulation...')
-            if not self.emflag:
-                simulation = Simulation(top.topology, system, integrator, platform)
-                simulation.context.setPositions(gro.positions)
-            else:
-                simulation.context.setVelocitiesToTemperature(temperature)
-             
-            if self.nvtrecflag:
-                nvtpdb = mddir + nvtname + '.pdb'
-                nvtlog = mddir + nvtname + '.log'
-                simulation.reporters.append(StateDataReporter(nvtlog, nvteqrecstep, time=True,
-                                                              totalEnergy=True, temperature=True, density=True, 
-                                                              progress=True, remainingTime=True, speed=True, 
-                                                              totalSteps=nvtstep, separator='\t'))
+        print('Saving...')
+        positions = simulation.context.getState(getPositions=True).getPositions()
+        PDBFile.writeFile(simulation.topology, positions, open(empdb, 'w'))
 
-            simulation.step(nvtstep)
+        return simulation
 
-            if self.nvtrecflag:
-                print('Saving...')
-                positions = simulation.context.getState(getPositions=True).getPositions()
-                PDBFile.writeFile(simulation.topology, positions, open(nvtpdb, 'w'))
- 
-        # NPT simulation
-        if self.nptflag:
-            print('NPT Simulation...')
-            system.addForce(MonteCarloBarostat(pressure, temperature))
-            if self.integrator == 'Langevin':
-                integrator = LangevinIntegrator(temperature, fric_const, dt) 
-            elif self.integrator == 'Brownian':
-                integrator = BrownianIntegrator(temperature, fric_const, dt)
-            elif self.integrator == 'Velret':
-                integrator = VelretIntegrator(dt)
-            else:
-                sys.exit('Invalid Integrator type. Check your input file.')
-            simulation = Simulation(top.topology, system, integrator, platform, properties)
-
-
-            if not self.emflag and not self.nvtflag:
-                positions = gro.positions
-
-            simulation.context.setPositions(positions)
-
-            if self.nptrecflag:
-                nptlog = mddir + nptname + '.log'
-                simulation.reporters.append(StateDataReporter(nptlog, npteqrecstep*2, time=True,
-                                                              totalEnergy=True, temperature=True, density=True, 
-                                                              progress=True, remainingTime=True, speed=True, 
-                                                              totalSteps=nptstep, separator='\t'))
-# checkpoint output function is now commented out.
-#            nptchk = mddir + nptname + '.chk'
-#            simulation.reporters.append(CheckpointReporter(nptchk, npteqrecstep))
-
-            if self.nptrecflag:
-                print('\nSaving...')
-                if self.reporterformat == 'XTC':
-                    print('Save as XTC file')
-                    nptxtc = mddir + nptname + '.xtc'
-                    xtc_reporter = mymm.XTCReporter(nptxtc, npteqrecstep)
-                    simulation.reporters.append(xtc_reporter)
-                elif self.reporterformat == 'PDB':
-                    print('Save as PDB file')
-                    nptpdb = mddir + nptname + '.pdb'
-                    pdb_reporter = PDBReporter(nptpdb, npteqrecstep) 
-                    simulation.reporters.append(pdb_reporter)
-
-            simulation.step(nptstep)
-
-        # MD simulation
-        print('MD Simulation...')
-        if not self.emflag and not self.nvtflag and not self.nptflag:
-            if mdensemble == 'npt':
-                system.addForce(MonteCarloBarostat(pressure, temperature))
-                if self.integrator == 'Langevin':
-                    integrator = LangevinIntegrator(temperature, fric_const, dt) 
-                elif self.integrator == 'Brownian':
-                    integrator = BrownianIntegrator(temperature, fric_const, dt)
-                elif self.integrator == 'Velret':
-                    integrator = VelretIntegrator(dt)
-                else:
-                    sys.exit('Invalid Integrator type. Check your input file.')
-
-            simulation = Simulation(top.topology, system, integrator, platform)
-            simulation.context.setPositions(gro.positions)
-        
-        if self.simlogflag:
-            mdlog = mddir + mdname + '.log'
-            simulation.reporters.append(StateDataReporter(mdlog, mdrecstep, time=True,
-                                                          totalEnergy=True, temperature=True, density=True, 
-                                                          progress=True, remainingTime=True, speed=True, totalSteps=totstep, separator='\t'))
-
-#        mdchk = mddir + mdname + '.chk'
-#        simulation.reporters.append(CheckpointReporter(mdchk, mdrecstep))
-
-        if self.mdrecflag:
+    def mdrun(self, simulation, ensname, index, mddir='MD/', sysdir='SYS/'):
+        # ensname simulation
+        print('self.steps:', self.steps, 'mdresctep:', self.recstep)
+        print(ensname+' Simulation...')
+        mdname = ensname + index
+        mdlog = mddir + mdname + '.log'
+        simulation.reporters.append(StateDataReporter(mdlog, self.recstep, time=True,
+                                                      totalEnergy=True, temperature=True, density=True, 
+                                                      progress=True, remainingTime=True, speed=True, totalSteps=self.steps, separator='\t'))
+        if self.recflag:
             print('\nSaving...')
             mdxtc = mddir + mdname + '.xtc'
-            xtc_reporter = mymm.XTCReporter(mdxtc, mdrecstep)
+            xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
             simulation.reporters.append(xtc_reporter)
 
-        simulation.step(mdstep)
-        print('Done!\n')  
+        print('Check Energy...')
+        state = simulation.context.getState(getEnergy=True)
+        energyval = state.getPotentialEnergy()
+        print(energyval)
+        if energyval / (kilojoule/mole) > 1.0e+14:
+            print('Energy diverged at infinity.')
+            sys.exit()
+
+        simulation.step(self.steps)
+        print('Done!\n')
+
+        mdpdb = sysdir + mdname + '.pdb'
+        positions = simulation.context.getState(getPositions=True).getPositions()
+        PDBFile.writeFile(simulation.topology, positions, open(mdpdb, 'w'))
+        return simulation, mdpdb
+
+    def convert_pdb2gro(self, pdb):
+        fname = pdb
+        root, ext = os.path.splitext(pdb)
+        outf = root + '.gro'
+        pdbstructure = pmd.load_file(pdb)
+        pdbstructure.save(outf, format='GRO', overwrite=True)
  
+
