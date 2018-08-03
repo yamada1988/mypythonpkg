@@ -36,8 +36,8 @@ for k in range(Nst, Ned-1, -1):
     ws = wb.add_worksheet("mus_{0:03d}".format(k))
 
     for i in range(200):
-        ws.set_row(i, 20.5)
-        ws.set_column(i, i, 15.0)
+        ws.set_row(i, 12.5)
+        ws.set_column(i, i, 11.0)
 
     # header
     rfs_row = [ 'refs={0:02d}'.format(line) for line in range(1, nrow+1) ]
