@@ -3,21 +3,21 @@
 import xlsxwriter
 from xlsxwriter.utility import xl_rowcol_to_cell, xl_range_abs
 
-nraw =  5
+nrow =  3
 nline = 99
 
 xlsxname = 'DAT/mus.xlsx'
 wb = xlsxwriter.Workbook(xlsxname)
 
 Nst = 50
-Ned = 45
+Ned = 41
 for k in range(Nst, Ned-1, -1):
     dirname = 'MELT_{0:03d}'.format(k)
-    mus = [['' for i in range(nraw)] for j in range(nline)]
-    errs = [['' for i in range(nraw)] for j in range(nline)] 
+    mus = [['' for i in range(nrow)] for j in range(nline)]
+    errs = [['' for i in range(nrow)] for j in range(nline)] 
     print('dir:', k)
     for i in range(1, nline+1):
-        for j in range(1, nraw+1):
+        for j in range(1, nrow+1):
             print('sln:', i, 'refs:', j)
             fname = dirname + '/ERmods/ermod_sln{0:02d}_refs{1:02d}/slvfe.tt'.format(i, j)
             with open(fname, 'rt') as f:
@@ -34,8 +34,14 @@ for k in range(Nst, Ned-1, -1):
         print(mus)
 
     ws = wb.add_worksheet("mus_{0:03d}".format(k))
+
+    for i in range(200):
+        ws.set_row(i, 20.5)
+        ws.set_column(i, i, 15.0)
+
     # header
-    header_row = ['', 'refs=1', 'refs=2', 'refs=3', 'refs=4', 'refs=5', 'Average', 'Stdev', '95%error']
+    rfs_row = [ 'refs={0:02d}'.format(line) for line in range(1, nrow+1) ]
+    header_row = [''] + rfs_row + [ 'Average', 'Stdev', '95%error']
     sln_col = [ 'soln={0:02d}'.format(line) for line in range(1, nline+1)]
     header_col = [''] + sln_col + [ 'Average', 'Stdev', '95%error']
     alphatable = {0:'A', 1:'B', 2:'C', 3:'D', 4:'E', 5:'F', 6:'G', 7:'H', 8:'I', 9:'J', 10:'K'}
@@ -47,23 +53,24 @@ for k in range(Nst, Ned-1, -1):
         ws.write_string(i, 0, header_col[i])
 
     for i in range(1, nline+1):
-        for j in range(1, nraw+1):
+        for j in range(1, nrow+1):
             try:
                 ws.write_number(i, j, mus[i-1][j-1])
             except:
                 ws.write_string(i, j, '')
 
     # Set Formula
-    for j in range(1, nraw+1):
+    for j in range(1, nrow+1):
         str_ = alphatable[j] + '2:' + alphatable[j] + '{0:d}'.format(nline+1)
         ws.write_formula(nline+1, j, '=AVERAGE(' + str_ +')')
         ws.write_formula(nline+2, j, '=STDEV(' +str_ + ')')
         ws.write_formula(nline+3, j, '='+alphatable[j]+'{0:d}/SQRT({1:d})'.format(nline+3, nline))
 
     for i in range(1, nline+1):
-        ws.write_formula(i, nraw+1, '=AVERAGE(B{0:d}:F{0:d})'.format(i+1))
-        ws.write_formula(i, nraw+2, '=STDEV(B{0:d}:F{0:d})'.format(i+1))                   
-        ws.write_formula(i, nraw+3, '=H{0:d}/SQRT({1:d})'.format(i+1,nraw))
+        str_ = 'B{0:d}:'.format(i+1) + alphatable[nrow] + '{0:d}'.format(i+1)
+        ws.write_formula(i, nrow+1, '=AVERAGE('+ str_ +')')
+        ws.write_formula(i, nrow+2, '=STDEV(' + str_ + ')') 
+        ws.write_formula(i, nrow+3, '='+ alphatable[nrow+2] +'{0:d}/SQRT({1:d})'.format(i+1,nrow))
 
     props = {
     "type": "3_color_scale",
@@ -76,7 +83,7 @@ for k in range(Nst, Ned-1, -1):
     "max_value": 2.0,
     "mid_value": -3.0,
     "min_value":  -8.0}
-    ws.conditional_format(1, 1, nline, nraw, props)
+    ws.conditional_format(1, 1, nline, nrow, props)
 
 
 wb.close()
