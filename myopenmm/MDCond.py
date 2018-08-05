@@ -472,7 +472,8 @@ class MDConductor:
             return dt, fric_const, temperature
 
 
-
+# Below description mey only be valid for Python 2.X. 
+# Modify ...(class, object) to ...(class) and super(class ,self) to super() if error occures.
 class REMDConductor(MDConductor, object):
     def __init__(self, T_list):
         super(REMDConductor, self).__init__()
