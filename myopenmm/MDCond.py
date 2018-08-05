@@ -1,3 +1,54 @@
+from myopenmm import *
+import mdtraj as md
+from simtk.openmm.app import *
+from simtk.openmm import *
+from simtk.unit import *
+from sys import stdout
+import sys
+import os
+from joblib import Parallel, delayed
+
+args = sys.argv
+stage = args[1]
+index = args[2]
+
+md_nvt = MDConductor()
+inpf = '../inpdir/' + stage + '/nvt' + index + '.inp'
+md_nvt.loadFile(inpf)
+sysgro, systop = md_nvt.preparation(sysdir='SYS/', mddir='MD')
+simulation_0 = md_nvt.setup(sysgro, systop)
+
+# EM
+simulation_em = md_nvt.minimize(simulation_0, 'em', index,  mddir='MD/')
+
+# NVT
+simulation_nvt = md_nvt.mdrun(simulation_em, 'nvt', index, mddir='MD/')
+
+# REMD (NPT)
+T_list = [453, 463, 473, 483]#, 493, 503, 513, 523 ]
+n_replica = len(T_list)
+remd = REMDConductor(T_list)
+inpf = '../inpdir/' + stage + '/npt' + index + '.inp'
+remd.loadFile(inpf)
+nvtgro, systop = remd.preparation(sysdir='SYS/', mddir='MD/')
+simulation_npt = remd.setup(nvtgro, systop)
+
+# REMD
+arglists = remd.setSims(simulation_npt, 'npt', index)
+sims, enes = [], []
+
+for i, args in enumerate(arglists):
+    print('index:', i)
+    j = '{0:02d}'.format(i)
+    sim, energy = remd.remdrun(args[0], args[1], args[2], args[3], args[4])
+    sims.append(sim)
+    enes.append(energy)
+print('enes:', enes)
+
+B_factor = []
+#for ene in enes:
+#    B_ factor.append() 
+nu-G02[15:19:19]:~/calspa/OpenMM/POLYMER_MIXTURE/PMMA/PMMA_050/MELT_050>cat ~/software/mypythonpkg/myopenmm/MDCond.py
 import myopenmm as mymm
 import mdtraj as md
 from distutils.util import strtobool
@@ -9,18 +60,14 @@ from sys import stdout
 import os
 import os.path
 import sys 
-import multiprocessing as mp
+from mypool import MyPool
 
 #  Requirement:
-#  python 3.X, openmm, mdtraj, parmed
+#  python 2.7, openmm, mdtraj, parmed
 #
 
-def unwrap_mdrun(args):
-     return MDConductor.mdrun(*args)
-
-def wrapper(self, args):
-    # For remd(multiprocessing)
-    return unwrap_mdrun(*args)
+def unwrap_remdrun(arg, **kwarg):
+    return REMDConductor.remdrun(*arg, **kwarg)
 
 class MDConductor:
     def __init__(self):
@@ -417,10 +464,6 @@ class MDConductor:
         pdbstructure.save(outf, format='GRO', overwrite=True)
 
 
-    def wrapper(self, args):
-        # For remd(multiprocessing)
-        return self.mdrun(*args)
-
     def getIntegratorInfo(self, integrator):
             dt = self.dt
             fric_const = integrator.getFriction()
@@ -429,9 +472,15 @@ class MDConductor:
             return dt, fric_const, temperature
 
 
-    def remd_equilibration(self, simulation, ensname, index, T_list, mddir='MD/', sysdir='SYS/'):
+
+class REMDConductor(MDConductor, object):
+    def __init__(self, T_list):
+        super(REMDConductor, self).__init__()
+        self.T_list = list(map(float, T_list))
+
+    def setSims(self, simulation, ensname, index, T_list, mddir='MD/', sysdir='SYS/'):
+        T_list = self.T_list
         n_replica = len(T_list)
-        T_list = list(map(float, T_list))
         print(n_replica, T_list)
         simulations = [ '' for i in range(n_replica)]
 
@@ -444,24 +493,23 @@ class MDConductor:
         arglists = [ []*5 for line in range(n_replica)]
         for i, T_ in enumerate(T_list):
             integrator_ = LangevinIntegrator(T_, fric_const, dt)
-            properties = {'OpenCLPrecision': self.precision, 'OpenCLDeviceIndex': '{0:d}'.format(i)}
+            properties = {'Precision': self.precision}#, 'DeviceIndex': '{0:d}'.format(i)}
             simulations[i] = Simulation(top, system, integrator_, self.pltform,  properties)   
             simulations[i].context.setPositions(positions)
             j = '{0:02d}'.format(i+1)
             arglists[i] = [simulations[i], ensname, index+'_'+ j, mddir, sysdir]
         print(arglists)
 
-        print('multiprocessing...')       
-#        p = mp.Pool(n_replica)
-#        output = p.map(unwrap_mdrun, arglists)
-#        p.close()
+        return arglists
 
-        jobs = []
-        for args in arglists:
-            job = mp.Process(target=self.mdrun, args=(args[0], args[1], args[2], args[3], args[4]))
-            print('job:', job)
-            jobs.append(job)
-            job.start()
 
-        [job.join() for job in jobs]
-        print('Finish.') 
+    def wrapper(self, args):
+        return self.mdrun(*args)
+
+
+    def remdrun(self, simulation, ensname, index, mddir='MD/', sysdir='SYS/'):
+        super(REMDConductor, self).mdrun(simulation, ensname, index, mddir='MD/', sysdir='SYS/')
+        print('Check Energy for REMD...')
+        state = simulation.context.getState(getEnergy=True)
+        energyval = state.getPotentialEnergy()
+        return simulation, energyval 
