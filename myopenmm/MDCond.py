@@ -9,11 +9,18 @@ from sys import stdout
 import os
 import os.path
 import sys 
+import multiprocessing as mp
 
 #  Requirement:
 #  python 3.X, openmm, mdtraj, parmed
 #
 
+def unwrap_mdrun(args):
+     return MDConductor.mdrun(*args)
+
+def wrapper(self, args):
+    # For remd(multiprocessing)
+    return unwrap_mdrun(*args)
 
 class MDConductor:
     def __init__(self):
@@ -155,7 +162,7 @@ class MDConductor:
         elif self.platform == 'CPU':
             self.properties = {}
         elif self.platform == 'OpenCL':
-            self.properties = {'OpenCLPrecision': precision}#, 'OpenCLDeviceIndex': '0,1,2,3'}
+            self.properties = {'OpenCLPrecision': precision, 'OpenCLDeviceIndex': '0,1,2,3'}
 
 
         # System input
@@ -286,7 +293,8 @@ class MDConductor:
             integrator = VerletIntegrator(dt)
         else:
             sys.exit('Invalid Integrator type. Check your input file.')
-
+        print('dt:', dt, 'fric_const:', fric_const, 'Total step:', self.steps)
+        
         # Ghost-particle        
         if self.ghost_particle:
             print('set ghost particle calculation...')
@@ -393,7 +401,13 @@ class MDConductor:
         mdpdb = sysdir + mdname + '.pdb'
         positions = simulation.context.getState(getPositions=True).getPositions()
         PDBFile.writeFile(simulation.topology, positions, open(mdpdb, 'w'))
-        return simulation, mdpdb
+
+        root, ext = os.path.splitext(mdpdb)
+        outf = root + '.gro'
+        pdbstructure = pmd.load_file(mdpdb)
+        pdbstructure.save(outf, format='GRO', overwrite=True)
+        return simulation
+
 
     def convert_pdb2gro(self, pdb):
         fname = pdb
@@ -401,5 +415,53 @@ class MDConductor:
         outf = root + '.gro'
         pdbstructure = pmd.load_file(pdb)
         pdbstructure.save(outf, format='GRO', overwrite=True)
- 
 
+
+    def wrapper(self, args):
+        # For remd(multiprocessing)
+        return self.mdrun(*args)
+
+    def getIntegratorInfo(self, integrator):
+            dt = self.dt
+            fric_const = integrator.getFriction()
+            temperature = integrator.getTemperature()
+
+            return dt, fric_const, temperature
+
+
+    def remd_equilibration(self, simulation, ensname, index, T_list, mddir='MD/', sysdir='SYS/'):
+        n_replica = len(T_list)
+        T_list = list(map(float, T_list))
+        print(n_replica, T_list)
+        simulations = [ '' for i in range(n_replica)]
+
+        dt, fric_const, temperature = self.getIntegratorInfo(simulation.integrator)
+        print(dt, fric_const, temperature)
+        system = simulation.system
+        top = simulation.topology
+        positions = simulation.context.getState(getPositions=True).getPositions()
+
+        arglists = [ []*5 for line in range(n_replica)]
+        for i, T_ in enumerate(T_list):
+            integrator_ = LangevinIntegrator(T_, fric_const, dt)
+            properties = {'OpenCLPrecision': self.precision, 'OpenCLDeviceIndex': '{0:d}'.format(i)}
+            simulations[i] = Simulation(top, system, integrator_, self.pltform,  properties)   
+            simulations[i].context.setPositions(positions)
+            j = '{0:02d}'.format(i+1)
+            arglists[i] = [simulations[i], ensname, index+'_'+ j, mddir, sysdir]
+        print(arglists)
+
+        print('multiprocessing...')       
+#        p = mp.Pool(n_replica)
+#        output = p.map(unwrap_mdrun, arglists)
+#        p.close()
+
+        jobs = []
+        for args in arglists:
+            job = mp.Process(target=self.mdrun, args=(args[0], args[1], args[2], args[3], args[4]))
+            print('job:', job)
+            jobs.append(job)
+            job.start()
+
+        [job.join() for job in jobs]
+        print('Finish.') 
