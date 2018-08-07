@@ -466,21 +466,30 @@ class REMDConductor(MDConductor, object):
         self.successes = [0 for i in range(self.n_replica)]
         self.probability = [0.0 for i in range(self.n_replica)]
 
-    def spread_replicas(self, simulation):
+    def spread_replicas(self, simulationlist, equilibriation=True):
         print(self.n_replica, self.Ts)
-        simulations = [ '' for i in range(self.n_replica)]
+        if equilibriation == True:
+            simulations = [ '' for i in range(self.n_replica)]
+        elif equilibriation == False:
+            simulations = simulationlist
 
-        dt, fric_const, temperature = self.getIntegratorInfo(simulation.integrator)
+        dt, fric_const, temperature = self.getIntegratorInfo(simulationlist[0].integrator)
         print(dt, fric_const, temperature)
-        system = simulation.system
-        top = simulation.topology
-        pos = simulation.context.getState(getPositions=True).getPositions()
+        system = simulationlist[0].system
+        top = simulationlist[0].topology
+        poses = [ 0 for i in range(self.n_replica)]
+        for i in range(self.n_replica):
+            if equilibriation == True:
+                l = 0
+            elif equilibriation == False:
+                l = i
+            poses[i] = simulationlist[l].context.getState(getPositions=True).getPositions()
 
         for i, T_ in enumerate(self.Ts):
             integrator_ = LangevinIntegrator(T_, fric_const, dt)
             properties = {'Precision': self.precision}
             simulations[i] = Simulation(top, system, integrator_, self.pltform,  properties)
-            simulations[i].context.setPositions(pos)
+            simulations[i].context.setPositions(poses[i])
 
         return simulations
 
@@ -524,6 +533,9 @@ class REMDConductor(MDConductor, object):
             groname = sysdir + ensname + index + '_{0:02d}'.format(j+1) + '_{0:04d}'.format(niter) + '.gro'
             if not niter == niter_tot:
                 os.remove(groname)
+            if niter == niter_tot:
+                newgroname = sysdir + ensname + index + '_{0:02d}'.format(j+1) + '.gro'
+                os.rename(groname, newgroname)
 
 
     def calc_prob(self, E_list, niter):
@@ -643,23 +655,27 @@ class REMDConductor(MDConductor, object):
                 nvtgro, systop = self.preparation(sysdir='SYS/', mddir='MD/')
                 simulation = self.setup(nvtgro, systop)
                 self.mdrun(simulation, 'npt', index)
-                simulations = self.spread_replicas(simulation)
+                siml = [simulation]
+                simulations = self.spread_replicas(siml, equilibriation=True)
             else:
-                simulations = []
+                siml = []
                 self.loadFile(inpf)  
                 for i in range(self.n_replica):
-                   indexj = '{0:02d}'.format(i+1)
+                   indexj = '_{0:02d}'.format(i+1)
                    nvtgro , systop = self.preparation(sysdir='SYS/', mddir='MD/', mode=mode, index=indexj)
                    simulation = self.setup(nvtgro, systop)
-                   simulations.append(simulation)
+                   siml.append(simulation)
+                simulations = self.spread_replicas(siml, equilibriation=False)
             tstates = self.initialize_replicas(simulations)
 
             for iter_ in range(1, niter+1):
                 print('iter:', iter_)
                 tstates, energys = self.remdrun(tstates, 'npt', index, iter_, mddir='MD/', sysdir='SYS/')
                 b_list, p_list = self.calc_prob(energys, iter_)
-                tstates = self.exchange(tstates, b_list, p_list, iter_, index)
+                if equilibriation == False:
+                    tstates = self.exchange(tstates, b_list, p_list, iter_, index)
                 self.del_intermediate('npt', index, iter_, niter, mddir='MD/', sysdir='SYS/')
 
             # Check Statistics
-            self.statistics()
+            if equilibriation == False:
+                self.statistics()
