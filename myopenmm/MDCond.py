@@ -144,7 +144,7 @@ class MDConductor:
                 f.write('{0}:{1}\n'.format(k, v))
 
 
-    def preparation(self, sysdir='SYS/', mddir='MD/'):
+    def preparation(self, sysdir='SYS/', mddir='MD/', mode=None, index=''):
         
         print('preparation start...')
         # Platform input
@@ -160,8 +160,14 @@ class MDConductor:
 
 
         # System input
-        sysgro = sysdir + self.sysfile
-        systop = sysdir + self.forcefield
+        if mode == None:
+            sysgro = sysdir + self.sysfile
+            systop = sysdir + self.forcefield
+        elif mode == 'REMD':
+            root, ext = self.sysfile.split('.')
+            ext = '.' + ext
+            sysgro = sysdir + root + index + ext
+            systop = sysdir + self.forcefield
 
         # System output
         mddir = 'MD/'
@@ -352,7 +358,7 @@ class MDConductor:
 
         print('Minimizing...')
         empdb = mddir + emname + '.pdb'
-        simulation.minimizeEnergy(maxIterations=2000)
+        simulation.minimizeEnergy(maxIterations=5000)
 
         print('Check Energy...')
         state = simulation.context.getState(getEnergy=True)
@@ -368,9 +374,10 @@ class MDConductor:
 
         return simulation
 
-    def mdrun(self, simulation, ensname, index, mddir='MD/', sysdir='SYS/', assert_system=True, check_eneflag=False):
+    def mdrun(self, simulation, ensname, index, mddir='MD/', sysdir='SYS/', 
+              assert_system=True, check_eneflag=False, tstate=None):
         # ensname simulation
-        print('self.steps:', self.steps, 'mdresctep:', self.recstep)
+#        print('self.steps:', self.steps, 'mdresctep:', self.recstep)
         print(ensname+' Simulation...')
         mdname = ensname + index
         mdlog = mddir + mdname + '.log'
@@ -380,12 +387,21 @@ class MDConductor:
                                                              progress=True, remainingTime=True, speed=True, totalSteps=self.steps, separator='\t')
         simulation.reporters.append(log_reporter)
 
-        if self.recflag:
+        xtc_flag = False
+        print('tstate:', tstate)
+        if self.recflag and tstate == None:
+            xtc_flag = True
             print('\nSaving...')
             mdxtc = mddir + mdname + '.xtc'
             xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
             simulation.reporters.append(xtc_reporter)
-
+        elif self.recflag and tstate == 'SystemID:01':
+            xtc_flag = True
+            print('\nREMD Saving...')
+            mdxtc = mddir + mdname + '.xtc'
+            xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
+            simulation.reporters.append(xtc_reporter)
+       
         if assert_system == True:
             print('Assert system...')
             state = simulation.context.getState(getEnergy=True)
@@ -407,18 +423,20 @@ class MDConductor:
         pdbstructure = pmd.load_file(mdpdb)
         pdbstructure.save(outf, format='GRO', overwrite=True)
         del pdbstructure
-
+        os.remove(mdpdb)
 
         if check_eneflag == True:
-            print('Check Energy...')
             state = simulation.context.getState(getEnergy=True)
             energy = state.getPotentialEnergy()
         else:
             energy = None
 
         log_f.close()
-        for r in simulation.reporters:
-            del r
+        if xtc_flag == True:
+            xtc_reporter.close()
+        
+        # initialize simulaition.reportes
+        simulation.reporters = []
         return simulation, energy
 
 
@@ -437,20 +455,16 @@ class MDConductor:
 
             return dt, fric_const, temperature
 
-class ThermodynamicStates(list):
-    def __init__(self):
-        list.__init__(self)
-
-    def store_index(self):
-        for l in self:
-            l.carve(self.index(l))
-
 
 class REMDConductor(MDConductor, object):
     def __init__(self, T_list):
         super(REMDConductor, self).__init__()
         self.Ts = list(map(float, T_list))
         self.n_replica = len(self.Ts)
+        # Statistics
+        self.attempts = [0 for i in range(self.n_replica)]
+        self.successes = [0 for i in range(self.n_replica)]
+        self.probability = [0.0 for i in range(self.n_replica)]
 
     def spread_replicas(self, simulation):
         print(self.n_replica, self.Ts)
@@ -480,6 +494,7 @@ class REMDConductor(MDConductor, object):
 
         return arglist
 
+
     def initialize_replicas(self, simulations):
         tstates = [[' ', ' '] for i in range(self.n_replica)]
         for i, sim in enumerate(simulations):
@@ -487,25 +502,32 @@ class REMDConductor(MDConductor, object):
             tstates[i][1] = sim
         return tstates 
 
-    def remdrun(self, tstates, ensname, index, mddir='MD', sysdir='MD'):
+
+    def remdrun(self, tstates, ensname, index, niter, mddir='MD', sysdir='MD'):
         simulations = [row[1] for row in tstates]
         arglist = self.make_arglist(simulations, ensname, index, mddir, sysdir)
 
         enes = []
         for i, args in enumerate(arglist):
-            print('index:', i)
             j = '{0:02d}'.format(i+1)
-            indexj = index + '_' + str(j)
-            sim, energy = self.mdrun(args[0], args[1], indexj, args[3], args[4], assert_system=False, check_eneflag=True)
+            k = '{0:04d}'.format(niter)
+            indexj = index + '_' + j + '_' + k 
+            sim, energy = self.mdrun(args[0], args[1], indexj, args[3], args[4], assert_system=False, check_eneflag=True, tstate=tstates[i][0])
             tstates[i][1] = sim
             enes.append(energy)
-        print('enes:', enes)
 
         return tstates, enes
 
+
+    def del_intermediate(self, ensname, index, niter, niter_tot, mddir='MD/', sysdir= 'SYS/'):
+        for j in range(self.n_replica):
+            groname = sysdir + ensname + index + '_{0:02d}'.format(j+1) + '_{0:04d}'.format(niter) + '.gro'
+            if not niter == niter_tot:
+                os.remove(groname)
+
+
     def calc_prob(self, E_list, niter):
         k = AVOGADRO_CONSTANT_NA * BOLTZMANN_CONSTANT_kB
-        print('kB:', k)
         b_list = [0 for i in range(self.n_replica)]
         p_list = [1 for i in range(self.n_replica)]
        
@@ -536,13 +558,23 @@ class REMDConductor(MDConductor, object):
         return b_list, p_list
 
     def exchange(self, tstates, b_list, p_list, niter, index):
+        if niter % 2 == 1:
+            for i in range(1, self.n_replica, 2):
+                self.attempts[i] += 1
+        else:
+            for i in range(0, self.n_replica, 2):
+                self.attempts[i] += 1
+        print('attempts:', self.attempts)
+
         simulations = [row[1] for row in tstates]
         exchange_flags = ['' for i in range(self.n_replica)]
         for i, b in enumerate(b_list):
             if b >= 1 or b >= p_list[i]:
                 exchange_flags[i] = True
+                self.successes[i] += 1
             else:
                 exchange_flags[i] = False
+        print('accepts:', self.successes)
         print('exchange_flags:', exchange_flags)
 
         # exchange position i-j position index
@@ -556,9 +588,7 @@ class REMDConductor(MDConductor, object):
                 positions[i+1] = dummy_p
                 tstates[i+1][0] = dummy_i
 
-        print(tstates)
         for i,tstate in enumerate(tstates):
-            print(tstate[1])
             tstate[1].context.setPositions(positions[i])
  
         # write exchange information
@@ -586,4 +616,50 @@ class REMDConductor(MDConductor, object):
         with open(exchange_fname, 'a+') as f:
             f.write(states)
  
-        return tstates   
+        return tstates       
+
+    def statistics(self):
+        for i,s in enumerate(self.successes):
+            self.probability[i] = '{0:4.3f}'.format(float(s)/float(self.attempts[i]))
+        p = self.probability
+        print('''##############################
+       REMD  Statistics 
+##############################
+''')
+        str_ = 'states:\t' + '\t'.join(['{0:02d}-{1:02d}'.format(i+1, i+2) for i in range(self.n_replica-1)])
+        print(str_)
+        str_p = 'prob:\t' + '\t'.join(self.probability[:-1])
+        print(str_p)
+        str_s = 'accept:\t' + '\t'.join(['{0:5d}'.format(s) for s in self.successes[:-1]])
+        print(str_s)
+        str_a = 'attmps:\t' + '\t'.join(['{0:5d}'.format(s) for s in  self.attempts[:-1]])
+        print(str_a)
+
+
+    def conduct(self, inpf, index, niter, mode='REMD', equilibriation=True):
+        if mode == 'REMD':
+            if equilibriation == True:
+                self.loadFile(inpf)
+                nvtgro, systop = self.preparation(sysdir='SYS/', mddir='MD/')
+                simulation = self.setup(nvtgro, systop)
+                self.mdrun(simulation, 'npt', index)
+                simulations = self.spread_replicas(simulation)
+            else:
+                simulations = []
+                self.loadFile(inpf)  
+                for i in range(self.n_replica):
+                   indexj = '{0:02d}'.format(i+1)
+                   nvtgro , systop = self.preparation(sysdir='SYS/', mddir='MD/', mode=mode, index=indexj)
+                   simulation = self.setup(nvtgro, systop)
+                   simulations.append(simulation)
+            tstates = self.initialize_replicas(simulations)
+
+            for iter_ in range(1, niter+1):
+                print('iter:', iter_)
+                tstates, energys = self.remdrun(tstates, 'npt', index, iter_, mddir='MD/', sysdir='SYS/')
+                b_list, p_list = self.calc_prob(energys, iter_)
+                tstates = self.exchange(tstates, b_list, p_list, iter_, index)
+                self.del_intermediate('npt', index, iter_, niter, mddir='MD/', sysdir='SYS/')
+
+            # Check Statistics
+            self.statistics()
