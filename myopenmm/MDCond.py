@@ -1,54 +1,3 @@
-from myopenmm import *
-import mdtraj as md
-from simtk.openmm.app import *
-from simtk.openmm import *
-from simtk.unit import *
-from sys import stdout
-import sys
-import os
-from joblib import Parallel, delayed
-
-args = sys.argv
-stage = args[1]
-index = args[2]
-
-md_nvt = MDConductor()
-inpf = '../inpdir/' + stage + '/nvt' + index + '.inp'
-md_nvt.loadFile(inpf)
-sysgro, systop = md_nvt.preparation(sysdir='SYS/', mddir='MD')
-simulation_0 = md_nvt.setup(sysgro, systop)
-
-# EM
-simulation_em = md_nvt.minimize(simulation_0, 'em', index,  mddir='MD/')
-
-# NVT
-simulation_nvt = md_nvt.mdrun(simulation_em, 'nvt', index, mddir='MD/')
-
-# REMD (NPT)
-T_list = [453, 463, 473, 483]#, 493, 503, 513, 523 ]
-n_replica = len(T_list)
-remd = REMDConductor(T_list)
-inpf = '../inpdir/' + stage + '/npt' + index + '.inp'
-remd.loadFile(inpf)
-nvtgro, systop = remd.preparation(sysdir='SYS/', mddir='MD/')
-simulation_npt = remd.setup(nvtgro, systop)
-
-# REMD
-arglists = remd.setSims(simulation_npt, 'npt', index)
-sims, enes = [], []
-
-for i, args in enumerate(arglists):
-    print('index:', i)
-    j = '{0:02d}'.format(i)
-    sim, energy = remd.remdrun(args[0], args[1], args[2], args[3], args[4])
-    sims.append(sim)
-    enes.append(energy)
-print('enes:', enes)
-
-B_factor = []
-#for ene in enes:
-#    B_ factor.append() 
-nu-G02[15:19:19]:~/calspa/OpenMM/POLYMER_MIXTURE/PMMA/PMMA_050/MELT_050>cat ~/software/mypythonpkg/myopenmm/MDCond.py
 import myopenmm as mymm
 import mdtraj as md
 from distutils.util import strtobool
@@ -60,14 +9,12 @@ from sys import stdout
 import os
 import os.path
 import sys 
-from mypool import MyPool
+from numpy.random import *
+import math
 
 #  Requirement:
 #  python 2.7, openmm, mdtraj, parmed
 #
-
-def unwrap_remdrun(arg, **kwarg):
-    return REMDConductor.remdrun(*arg, **kwarg)
 
 class MDConductor:
     def __init__(self):
@@ -221,6 +168,18 @@ class MDConductor:
 
         return sysgro, systop
 
+
+    def create_top(self, systop, gro):
+        if self.pbc:
+            print('set periodic boundary condition...')
+            top = GromacsTopFile(systop, periodicBoxVectors=gro.getPeriodicBoxVectors())
+        else:
+            top = GromacsTopFile(systop)
+
+        self.top = top
+        return top
+
+
     def setup(self, sysgro, systop):
         # Simulation setting
         if self.temperature:
@@ -235,45 +194,35 @@ class MDConductor:
             pressure = self.pressure * bar
 
         # Create gro
-        root, ext = os.path.splitext(sysgro)
-        if ext == '.gro':
-            gro = GromacsGroFile(sysgro)
-        elif ext == '.pdb':
-            gro = PDBFile(sysgro) 
+        gro = GromacsGroFile(sysgro)
 
         # Create top
-        if self.pbc:
-            print('set periodic boundary condition...')
-            if ext == '.gro':
-                top = GromacsTopFile(systop, periodicBoxVectors=gro.getPeriodicBoxVectors())
-        else:
-            if ext == 'gro':
-                top = GromacsTopFile(systop)
-       
-        if self.heavyhydrogen:
-            print('Hydrogen Mass Repartitioning...')
-            hmass = 4*amu
-        else:
-            hmass = 1*amu
-
+        top = self.create_top(systop, gro)
 
         # Create system
+        if self.heavyhydrogen:
+            print('Hydrogen Mass Repartitioning...')
+            self.hmass = 4*amu
+        else:
+            self.hmass = None
+
         if self.nonbonded_method == 'PME':
             print('set PME...')
             if self.nonbonded_cutoffflag:
                 nonbonded_cutoff = self.nonbonded_cutoff   
-                system = top.createSystem(hydrogenMass=hmass,nonbondedMethod=PME, 
-                                          nonbondedCutoff=nonbonded_cutoff,
+                system = top.createSystem(hydrogenMass=self.hmass,nonbondedMethod=PME, 
+                                          nonbondedCutoff=self.nonbonded_cutoff,
                                           constraints=self.constraints)
             else:
-                system = top.createSystem(hydrogenMass=hmass,nonbondedMethod=PME,
+                system = top.createSystem(hydrogenMass=self.hmass,nonbondedMethod=PME,
                                           constraints=self.constraints)        
         elif self.nonbonded_method == 'Cutoff':
             print('set cutoff...')
-            nonbonded_cutoff = self.nonbonded_cutoff
-            system = top.createSystem(hydrogenMass=hmass,nonbondedMethod=Cutoff, 
-                                      nonbondedCutoff=nonbonded_cutoff,
+            system = top.createSystem(hydrogenMass=self.hmass,nonbondedMethod=Cutoff, 
+                                      nonbondedCutoff=self.nonbonded_cutoff,
                                       constraints=self.constraints)
+
+        self.system = system
 
         # Check ensembleflag
         if self.nvtflag:
@@ -419,28 +368,32 @@ class MDConductor:
 
         return simulation
 
-    def mdrun(self, simulation, ensname, index, mddir='MD/', sysdir='SYS/'):
+    def mdrun(self, simulation, ensname, index, mddir='MD/', sysdir='SYS/', assert_system=True, check_eneflag=False):
         # ensname simulation
         print('self.steps:', self.steps, 'mdresctep:', self.recstep)
         print(ensname+' Simulation...')
         mdname = ensname + index
         mdlog = mddir + mdname + '.log'
-        simulation.reporters.append(StateDataReporter(mdlog, self.recstep, time=True,
-                                                      totalEnergy=True, temperature=True, density=True, 
-                                                      progress=True, remainingTime=True, speed=True, totalSteps=self.steps, separator='\t'))
+        log_f = open(mdlog, mode='a+')
+        log_reporter = StateDataReporter(log_f, self.recstep, time=True,
+                                                             totalEnergy=True, temperature=True, density=True,
+                                                             progress=True, remainingTime=True, speed=True, totalSteps=self.steps, separator='\t')
+        simulation.reporters.append(log_reporter)
+
         if self.recflag:
             print('\nSaving...')
             mdxtc = mddir + mdname + '.xtc'
             xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
             simulation.reporters.append(xtc_reporter)
 
-        print('Check Energy...')
-        state = simulation.context.getState(getEnergy=True)
-        energyval = state.getPotentialEnergy()
-        print(energyval)
-        if energyval / (kilojoule/mole) > 1.0e+14:
-            print('Energy diverged at infinity.')
-            sys.exit()
+        if assert_system == True:
+            print('Assert system...')
+            state = simulation.context.getState(getEnergy=True)
+            energyval = state.getPotentialEnergy()
+            print(energyval)
+            if energyval / (kilojoule/mole) > 1.0e+14:
+                print('Energy diverged at infinity.')
+                sys.exit()
 
         simulation.step(self.steps)
         print('Done!\n')
@@ -453,7 +406,20 @@ class MDConductor:
         outf = root + '.gro'
         pdbstructure = pmd.load_file(mdpdb)
         pdbstructure.save(outf, format='GRO', overwrite=True)
-        return simulation
+        del pdbstructure
+
+
+        if check_eneflag == True:
+            print('Check Energy...')
+            state = simulation.context.getState(getEnergy=True)
+            energy = state.getPotentialEnergy()
+        else:
+            energy = None
+
+        log_f.close()
+        for r in simulation.reporters:
+            del r
+        return simulation, energy
 
 
     def convert_pdb2gro(self, pdb):
@@ -471,46 +437,153 @@ class MDConductor:
 
             return dt, fric_const, temperature
 
+class ThermodynamicStates(list):
+    def __init__(self):
+        list.__init__(self)
 
-# Below description mey only be valid for Python 2.X. 
-# Modify ...(class, object) to ...(class) and super(class ,self) to super() if error occures.
+    def store_index(self):
+        for l in self:
+            l.carve(self.index(l))
+
+
 class REMDConductor(MDConductor, object):
     def __init__(self, T_list):
         super(REMDConductor, self).__init__()
-        self.T_list = list(map(float, T_list))
+        self.Ts = list(map(float, T_list))
+        self.n_replica = len(self.Ts)
 
-    def setSims(self, simulation, ensname, index, T_list, mddir='MD/', sysdir='SYS/'):
-        T_list = self.T_list
-        n_replica = len(T_list)
-        print(n_replica, T_list)
-        simulations = [ '' for i in range(n_replica)]
+    def spread_replicas(self, simulation):
+        print(self.n_replica, self.Ts)
+        simulations = [ '' for i in range(self.n_replica)]
 
         dt, fric_const, temperature = self.getIntegratorInfo(simulation.integrator)
         print(dt, fric_const, temperature)
         system = simulation.system
         top = simulation.topology
-        positions = simulation.context.getState(getPositions=True).getPositions()
+        pos = simulation.context.getState(getPositions=True).getPositions()
 
-        arglists = [ []*5 for line in range(n_replica)]
-        for i, T_ in enumerate(T_list):
+        for i, T_ in enumerate(self.Ts):
             integrator_ = LangevinIntegrator(T_, fric_const, dt)
-            properties = {'Precision': self.precision}#, 'DeviceIndex': '{0:d}'.format(i)}
-            simulations[i] = Simulation(top, system, integrator_, self.pltform,  properties)   
-            simulations[i].context.setPositions(positions)
+            properties = {'Precision': self.precision}
+            simulations[i] = Simulation(top, system, integrator_, self.pltform,  properties)
+            simulations[i].context.setPositions(pos)
+
+        return simulations
+
+       
+    def make_arglist(self, simulations, ensname, index, mddir='MD/', sysdir='SYS/'): 
+        arglist = [ []*5 for line in range(self.n_replica)]
+        for i, T_ in enumerate(self.Ts):
             j = '{0:02d}'.format(i+1)
-            arglists[i] = [simulations[i], ensname, index+'_'+ j, mddir, sysdir]
-        print(arglists)
+            indexj = index + '_' + j
+            arglist[i] = [simulations[i], ensname, indexj,  mddir, sysdir]
 
-        return arglists
+        return arglist
 
+    def initialize_replicas(self, simulations):
+        tstates = [[' ', ' '] for i in range(self.n_replica)]
+        for i, sim in enumerate(simulations):
+            tstates[i][0] = 'SystemID:{0:02d}'.format(i+1)
+            tstates[i][1] = sim
+        return tstates 
 
-    def wrapper(self, args):
-        return self.mdrun(*args)
+    def remdrun(self, tstates, ensname, index, mddir='MD', sysdir='MD'):
+        simulations = [row[1] for row in tstates]
+        arglist = self.make_arglist(simulations, ensname, index, mddir, sysdir)
 
+        enes = []
+        for i, args in enumerate(arglist):
+            print('index:', i)
+            j = '{0:02d}'.format(i+1)
+            indexj = index + '_' + str(j)
+            sim, energy = self.mdrun(args[0], args[1], indexj, args[3], args[4], assert_system=False, check_eneflag=True)
+            tstates[i][1] = sim
+            enes.append(energy)
+        print('enes:', enes)
 
-    def remdrun(self, simulation, ensname, index, mddir='MD/', sysdir='SYS/'):
-        super(REMDConductor, self).mdrun(simulation, ensname, index, mddir='MD/', sysdir='SYS/')
-        print('Check Energy for REMD...')
-        state = simulation.context.getState(getEnergy=True)
-        energyval = state.getPotentialEnergy()
-        return simulation, energyval 
+        return tstates, enes
+
+    def calc_prob(self, E_list, niter):
+        k = AVOGADRO_CONSTANT_NA * BOLTZMANN_CONSTANT_kB
+        print('kB:', k)
+        b_list = [0 for i in range(self.n_replica)]
+        p_list = [1 for i in range(self.n_replica)]
+       
+        if niter % 2 == 1:
+            eo = 'odd'
+        else:
+            eo = 'even'
+
+        if eo == 'even':
+            elist = E_list[0::2]
+        elif eo == 'odd':
+            elist = E_list[1::2]
+            elist = elist[:-1]
+
+        for i,e in enumerate(E_list[:-1]):
+            if eo == 'even' and i % 2 == 1:
+                continue
+            elif eo == 'odd' and i % 2 == 0:
+                continue
+            tm = self.Ts[i+1]*kelvin
+            tn = self.Ts[i]*kelvin 
+            Dbeta = (1/(k*tm) - 1/(k*tn))
+            expbD = math.exp(Dbeta * (E_list[i+1] - E_list[i]))
+            b_list[i] = expbD
+            p = rand()
+            p_list[i] = p
+            
+        return b_list, p_list
+
+    def exchange(self, tstates, b_list, p_list, niter, index):
+        simulations = [row[1] for row in tstates]
+        exchange_flags = ['' for i in range(self.n_replica)]
+        for i, b in enumerate(b_list):
+            if b >= 1 or b >= p_list[i]:
+                exchange_flags[i] = True
+            else:
+                exchange_flags[i] = False
+        print('exchange_flags:', exchange_flags)
+
+        # exchange position i-j position index
+        positions = [ sim.context.getState(getPositions=True).getPositions() for sim in simulations]
+        for i, flag in enumerate(exchange_flags):
+            if flag == True:
+                dummy_p = positions[i]
+                dummy_i = tstates[i][0] 
+                positions[i] = positions[i+1]
+                tstates[i][0] = tstates[i+1][0]
+                positions[i+1] = dummy_p
+                tstates[i+1][0] = dummy_i
+
+        print(tstates)
+        for i,tstate in enumerate(tstates):
+            print(tstate[1])
+            tstate[1].context.setPositions(positions[i])
+ 
+        # write exchange information
+        states0 = '# st1\t\t' + '\t\t'.join(['st{0:d}'.format(i+1) for i in range(1, self.n_replica)]) 
+        states = ['' for i in range(2*self.n_replica)]
+        for j,i in enumerate([str(i+1) for i in range(self.n_replica)]):
+            k = j + 1
+            states[2*k-2] = i
+            if j == self.n_replica + 1:
+                break
+            if exchange_flags[j]:
+                states[2*k-1] = 'x'
+                dummy = positions[j]
+                positions[j] = positions[j+1]
+                positions[j+1] = dummy
+
+            elif exchange_flags[j] == False and j < self.n_replica - 1:
+                states[2*k-1] = ' '
+
+        states = '\t'.join(states) + '\n'
+        exchange_fname = 'MD/exchange_'+index+'.log'
+        if niter == 1:
+            with open(exchange_fname, 'wt') as f:
+                f.write(states0 + '\n')
+        with open(exchange_fname, 'a+') as f:
+            f.write(states)
+ 
+        return tstates   
