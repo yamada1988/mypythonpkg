@@ -25,8 +25,14 @@ index = args[2]
 #simulation_nvt, _ = md_nvt.mdrun(simulation_em, 'nvt', index, mddir='MD/')
 
 inpf = '../inpdir/' + stage + '/npt' + index + '.inp'
-niter = 4
+niter = 1
 # REMD (NPT)
-T_list = [453, 455, 457]
+T_list = [453, 455, 457, 459, 461]
 remd = REMDConductor(T_list)
+# equilibriation
 remd.conduct(inpf, index, niter, mode='REMD', equilibriation=True)
+
+# sampling
+inpf2 = '../inpdir/stage2' + '/npt' + index + '.inp'
+niter = 100
+remd.conduct(inpf2, index, niter, mode='REMD', equilibriation=False)
