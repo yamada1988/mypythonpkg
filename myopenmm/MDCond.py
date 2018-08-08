@@ -604,19 +604,21 @@ class REMDConductor(MDConductor, object):
         print('exchange_flags:', exchange_flags)
 
         # exchange position i-j position index
-        positions = [ sim.context.getState(getPositions=True).getPositions() for sim in simulations]
+        #positions = [ sim.context.getState(getPositions=True).getPositions() for sim in simulations]
+        contexts = [ sim.context for sim in simulations]
         for i, flag in enumerate(exchange_flags):
             if flag == True:
-                dummy_p = positions[i]
+                dummy_p = contexts[i]
                 dummy_i = tstates[i][0] 
-                positions[i] = positions[i+1]
+                contexts[i] = contexts[i+1]
                 tstates[i][0] = tstates[i+1][0]
-                positions[i+1] = dummy_p
+                contexts[i+1] = dummy_p
                 tstates[i+1][0] = dummy_i
 
         for i,tstate in enumerate(tstates):
-            tstate[1].context.setPositions(positions[i])
- 
+            #tstate[1].context.setPositions(positions[i])
+            tstate[1].context = contexts[i] 
+
         # write exchange information
         states0 = '# st1\t\t' + '\t\t'.join(['st{0:d}'.format(i+1) for i in range(1, self.n_replica)]) 
         states = ['' for i in range(2*self.n_replica)]
@@ -627,9 +629,6 @@ class REMDConductor(MDConductor, object):
                 break
             if exchange_flags[j]:
                 states[2*k-1] = 'x'
-                dummy = positions[j]
-                positions[j] = positions[j+1]
-                positions[j+1] = dummy
 
             elif exchange_flags[j] == False and j < self.n_replica - 1:
                 states[2*k-1] = ' '
