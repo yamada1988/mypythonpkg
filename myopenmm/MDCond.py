@@ -152,7 +152,7 @@ class MDConductor:
                 f.write('{0}:{1}\n'.format(k, v))
 
 
-    def preparation(self, sysdir='SYS/', mddir='MD/', mode=None, index=''):
+    def preparation(self, sysdir='SYS/', mddir='MD/'):
         
         print('preparation start...')
         # Platform input
@@ -168,14 +168,8 @@ class MDConductor:
 
 
         # System input
-        if mode == None:
-            sysgro = sysdir + self.sysfile
-            systop = sysdir + self.forcefield
-        elif mode == 'REMD':
-            root, ext = self.sysfile.split('.')
-            ext = '.' + ext
-            sysgro = sysdir + root + index + ext
-            systop = sysdir + self.forcefield
+        sysgro = sysdir + self.sysfile
+        systop = sysdir + self.forcefield
 
         # System output
         mddir = 'MD/'
@@ -195,25 +189,7 @@ class MDConductor:
         return top
 
 
-    def setup(self, sysgro, systop):
-        # Simulation setting
-        if self.temperature:
-            temperature = self.temperature * kelvin
-
-        if self.friction_const:
-            fric_const = self.friction_const / picosecond
-
-        dt = self.dt * picosecond
-
-        if self.pressure:
-            pressure = self.pressure * bar
-
-        # Create gro
-        gro = GromacsGroFile(sysgro)
-
-        # Create top
-        top = self.create_top(systop, gro)
-
+    def create_system(self, top):
         # Create system
         if self.heavyhydrogen:
             print('Hydrogen Mass Repartitioning...')
@@ -237,17 +213,19 @@ class MDConductor:
                                       nonbondedCutoff=self.nonbonded_cutoff,
                                       constraints=self.constraints)
 
-
         # Check ensembleflag
         if self.nvtflag:
             nvtstep = self.nvtstep  
         else:
             nvtstep = 0
 
+        if self.pressure:
+            pressure = self.pressure * bar
+
         if self.nptflag:
             nptstep = self.nptstep
             print('add MonteCarlo Barostat...')
-            system.addForce(MonteCarloBarostat(pressure, temperature))
+            system.addForce(MonteCarloBarostat(pressure, self.temperature))
         else:
             nptstep = 0       
 
@@ -274,7 +252,6 @@ class MDConductor:
         if self.simlogflag:
             simlogstep = self.simlogstep
 
-
         if self.setPME:
             print('set PME parameters...')
             forces = {system.getForce(index).__class__.__name__: system.getForce(index) for index in range(system.getNumForces())}
@@ -291,20 +268,6 @@ class MDConductor:
             forces['NonbondedForce'].setUseSwitchingFunction(True)
             forces['NonbondedForce'].setSwitchingDistance(nonbonded_switch)
 
-        # Create integrator
-        if self.integrator == 'Langevin':
-            print('set Langevin Integrator...')
-            integrator = LangevinIntegrator(temperature, fric_const, dt) 
-        elif self.integrator == 'Brownian':
-            print('set Brownian Integrator...')
-            integrator = BrownianIntegrator(temperature, fric_const, dt)
-        elif self.integrator == 'Verlet':
-            print('set Verlet Integrator...')
-            integrator = VerletIntegrator(dt)
-        else:
-            sys.exit('Invalid Integrator type. Check your input file.')
-        print('dt:', dt, 'fric_const:', fric_const, 'Temperature:', temperature, 'Total step:', self.steps)
-        
         # Ghost-particle        
         if self.ghost_particle:
             print('set ghost particle calculation...')
@@ -354,7 +317,45 @@ class MDConductor:
 #                        print('{0:d}-{1:d} pair already prepared.'.format(i, j))
 #            for index in range(nonbonded_force.getNumExceptions()):
 #                print(nonbonded_force.getExceptionParameters(index))
-            
+        return system
+
+   
+    def create_integrator(self):
+        if self.temperature:
+            temperature = self.temperature * kelvin
+
+        if self.friction_const:
+            fric_const = self.friction_const / picosecond
+        dt = self.dt * picosecond
+
+        if self.integrator == 'Langevin':
+            print('set Langevin Integrator...')
+            integrator = LangevinIntegrator(temperature, fric_const, dt)
+        elif self.integrator == 'Brownian':
+            print('set Brownian Integrator...')
+            integrator = BrownianIntegrator(temperature, fric_const, dt)
+        elif self.integrator == 'Verlet':
+            print('set Verlet Integrator...')
+            integrator = VerletIntegrator(dt)
+        else:
+            sys.exit('Invalid Integrator type. Check your input file.')
+        print('dt:', dt, 'fric_const:', fric_const, 'Temperature:', temperature, 'Total step:', self.steps)
+        return integrator
+
+
+    def setup(self, sysgro, systop):
+        # Create gro
+        gro = GromacsGroFile(sysgro)
+
+        # Create top
+        top = self.create_top(systop, gro)
+
+        # Create system
+        system = self.create_system(top)
+
+        # Create integrator
+        integrator = self.create_integrator()
+        
         print ('Create simulation...')
         simulation = Simulation(top.topology, system, integrator, self.pltform, self.properties)
         simulation.context.setPositions(gro.positions)
@@ -397,8 +398,8 @@ class MDConductor:
     
         log_f = open(mdlog, mode='a+')
         log_reporter = StateDataReporter(log_f, self.recstep, time=True,
-                                                             totalEnergy=True, temperature=True, density=True,
-                                                             progress=True, remainingTime=True, speed=True, totalSteps=self.steps, separator='\t')
+                                                              totalEnergy=True, temperature=True, density=True,
+                                                              progress=True, remainingTime=True, speed=True, totalSteps=self.steps, separator='\t')
         simulation.reporters.append(log_reporter)
 
         xtc_flag = False
@@ -474,40 +475,17 @@ class MDConductor:
 
 
 class REMDConductor(MDConductor, object):
-    def __init__(self, T_list):
+    def __init__(self, T_list, mode=None):
         super(REMDConductor, self).__init__()
         self.Ts = list(map(float, T_list))
         self.n_replica = len(self.Ts)
+        self.mode = mode
         # Statistics
         self.attempts = [0 for i in range(self.n_replica)]
         self.successes = [0 for i in range(self.n_replica)]
         self.probability = [0.0 for i in range(self.n_replica)]
+        self.existindex = [0 for i in range(self.n_replica)]
 
-    def spread_replicas(self, simulationlist, equilibriation=True):
-        print(self.n_replica, self.Ts)
-        simulations = [ '' for i in range(self.n_replica)]
-
-        dt, fric_const, temperature = self.getIntegratorInfo(simulationlist[0].integrator)
-        print(dt, fric_const, temperature)
-        poses = [ i for i in range(self.n_replica)]
-        for i in range(self.n_replica):
-            if equilibriation == True:
-                l = 0
-            else:
-                l = i
-            system = simulationlist[l].system
-            top = simulationlist[l].topology
-            poses[i] = simulationlist[l].context.getState(getPositions=True).getPositions()
-
-        for i, T_ in enumerate(self.Ts):
-            integrator_ = LangevinIntegrator(T_, fric_const, dt)
-            properties = {'Precision': self.precision}
-            simulations[i] = Simulation(top, system, integrator_, self.pltform,  properties)
-            simulations[i].context.setPositions(poses[i])
-
-        return simulations
-
-       
     def make_arglist(self, simulations, ensname, index, mddir='MD/', sysdir='SYS/'): 
         arglist = [ []*5 for line in range(self.n_replica)]
         for i, T_ in enumerate(self.Ts):
@@ -526,19 +504,25 @@ class REMDConductor(MDConductor, object):
         return tstates 
 
 
-    def remdrun(self, tstates, ensname, index, niter, mddir='MD', sysdir='MD'):
+    def remdrun(self, tstates, ensname, index, niter, mddir='MD', sysdir='SYS/', parallel=False):
         simulations = [row[1] for row in tstates]
         arglist = self.make_arglist(simulations, ensname, index, mddir, sysdir)
 
         enes = []
-        for i, args in enumerate(arglist):
-            j = '{0:02d}'.format(i+1)
-            k = '{0:04d}'.format(niter)
-            indexj = index + '_' + j + '_' + k 
-            sim, energy = self.mdrun(args[0], args[1], indexj, args[3], args[4], assert_system=False, check_eneflag=True, tstate=tstates[i][0])
-            tstates[i][1] = sim
-            enes.append(energy)
-
+        if parallel == False:
+            for i, args in enumerate(arglist):
+                j = '{0:02d}'.format(i+1)
+                k = '{0:04d}'.format(niter)
+                indexj = index + '_' + j + '_' + k 
+                sim, energy = self.mdrun(args[0], args[1], indexj, args[3], args[4], assert_system=False, check_eneflag=True, tstate=tstates[i][0])
+                tstates[i][1] = sim
+                enes.append(energy)
+        elif parallel == True:
+            for i, args in enumerate(arglist):
+                j = '{0:02d}'.format(i+1)
+                k = '{0:04d}'.format(niter)
+                indexj = index + '_' + j + '_' + k
+                
         return tstates, enes
 
 
@@ -590,7 +574,10 @@ class REMDConductor(MDConductor, object):
         else:
             for i in range(0, self.n_replica, 2):
                 self.attempts[i] += 1
-        print('attempts:', self.attempts)
+
+        for i in range(0, self.n_replica):
+           if tstates[i][0] == 'SystemID:01':
+               self.existindex[i] += 1 
 
         simulations = [row[1] for row in tstates]
         exchange_flags = ['' for i in range(self.n_replica)]
@@ -601,10 +588,11 @@ class REMDConductor(MDConductor, object):
             else:
                 exchange_flags[i] = False
         print('accepts:', self.successes)
+        print('attempts:', self.attempts)
+        print('indexes:', self.existindex)
         print('exchange_flags:', exchange_flags)
 
-        # exchange position i-j position index
-        #positions = [ sim.context.getState(getPositions=True).getPositions() for sim in simulations]
+        # exchange context i-j position index
         contexts = [ sim.context for sim in simulations]
         for i, flag in enumerate(exchange_flags):
             if flag == True:
@@ -616,7 +604,6 @@ class REMDConductor(MDConductor, object):
                 tstates[i+1][0] = dummy_i
 
         for i,tstate in enumerate(tstates):
-            #tstate[1].context.setPositions(positions[i])
             tstate[1].context = contexts[i] 
 
         # write exchange information
@@ -658,36 +645,45 @@ class REMDConductor(MDConductor, object):
         str_s = 'accept:\t' + '\t'.join(['{0:5d}'.format(s) for s in self.successes[:-1]])
         print(str_s)
         str_a = 'attmps:\t' + '\t'.join(['{0:5d}'.format(s) for s in  self.attempts[:-1]])
-        print(str_a)
+        str_ =  '\t'.join(['state{0:02d}'.format(i) for i in range(1, self.n_replica+1)])
+        print(str_)
+        str_i = '\t'.join(['{0:5d}'.format(s) for s in self.existindex])
+        print(str_i)
 
 
-    def conduct(self, inpf, index, niter, mode='REMD', equilibriation=True):
-        if mode == 'REMD':
-            if equilibriation == True:
-                self.loadFile(inpf)
-                nvtgro, systop = self.preparation(sysdir='SYS/', mddir='MD/')
-                simulation = self.setup(nvtgro, systop)
-                siml = [simulation]
-                simulations = self.spread_replicas(siml, equilibriation=True)
-            else:
-                simulations = []
-                self.loadFile(inpf)  
-                for i, T_ in enumerate(self.Ts):
-                   self.temperature = T_
-                   indexj = '_{0:02d}'.format(i+1)
-                   nvtgro, systop = self.preparation(sysdir='SYS/', mddir='MD/', mode=mode, index=indexj)
-                   simulation = self.setup(nvtgro, systop)
-                   simulations.append(simulation)
-            tstates = self.initialize_replicas(simulations)
+    def conduct(self, inpf, index, niter=1, equilibriation=True, parallel=False):
+        if equilibriation == True:
+            print('start equilibriation procedure...')
+        simulations = []
+        self.loadFile(inpf)
+        g = self.sysfile
+        tp = self.forcefield
+        if equilibriation == True:
+            niter = 1
 
-            for iter_ in range(1, niter+1):
-                print('iter:', iter_)
-                tstates, energys = self.remdrun(tstates, 'npt', index, iter_, mddir='MD/', sysdir='SYS/')
-                b_list, p_list = self.calc_prob(energys, iter_)
-                if equilibriation == False:
-                    tstates = self.exchange(tstates, b_list, p_list, iter_, index)
-                self.del_intermediate('npt', index, iter_, niter, mddir='MD/', sysdir='SYS/')
-
-            # Check Statistics
+        for i, T_ in enumerate(self.Ts):
             if equilibriation == False:
-                self.statistics()
+                self.sysfile = g.split('.')[0] + '_{0:02d}'.format(i+1) + '.gro'
+            if self.mode == 'REMD':
+                self.temperature = T_
+                self.forcefield = self.forcefield
+            elif self.mode == 'REST':
+                self.temperature = self.temperature
+                self.forcefield = tp.split('.')[0] + '_{0:02d}'.format(i+1) + '.top'
+            nvtgro, systop = self.preparation(sysdir='SYS/', mddir='MD/')
+            simulation = self.setup(nvtgro, systop)
+            simulations.append(simulation)
+        tstates = self.initialize_replicas(simulations)
+
+        for iter_ in range(1, niter+1):
+            print('iter:', iter_)
+            tstates, energys = self.remdrun(tstates, 'npt', index, iter_, mddir='MD/', sysdir='SYS/', parallel=False)
+            b_list, p_list = self.calc_prob(energys, iter_)
+            if equilibriation == False:
+                tstates = self.exchange(tstates, b_list, p_list, iter_, index)
+            self.del_intermediate('npt', index, iter_, niter, mddir='MD/', sysdir='SYS/')
+
+
+        # Check Statistics
+        if equilibriation == False:
+            self.statistics()
