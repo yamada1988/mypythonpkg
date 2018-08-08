@@ -9,12 +9,20 @@ from sys import stdout
 import os
 import os.path
 import sys 
+import numpy as np
 from numpy.random import *
 import math
+import subprocess
 
 #  Requirement:
 #  python 2.7, openmm, mdtraj, parmed
 #
+def get_gpu_info():
+   cmd = 'nvidia-smi --query-gpu=index --format=csv'
+   output = subprocess.check_output(cmd, shell=True)
+   lines = output.split('\n')
+   lines = [ line.strip() for line in lines if line.strip() != '' ]
+   return lines
 
 class MDConductor:
     def __init__(self):
@@ -172,6 +180,7 @@ class MDConductor:
         # System output
         mddir = 'MD/'
 
+        print('sysgro:', sysgro, 'systop:', systop)
         return sysgro, systop
 
 
@@ -228,7 +237,6 @@ class MDConductor:
                                       nonbondedCutoff=self.nonbonded_cutoff,
                                       constraints=self.constraints)
 
-        self.system = system
 
         # Check ensembleflag
         if self.nvtflag:
@@ -295,7 +303,7 @@ class MDConductor:
             integrator = VerletIntegrator(dt)
         else:
             sys.exit('Invalid Integrator type. Check your input file.')
-        print('dt:', dt, 'fric_const:', fric_const, 'Total step:', self.steps)
+        print('dt:', dt, 'fric_const:', fric_const, 'Temperature:', temperature, 'Total step:', self.steps)
         
         # Ghost-particle        
         if self.ghost_particle:
@@ -347,9 +355,10 @@ class MDConductor:
 #            for index in range(nonbonded_force.getNumExceptions()):
 #                print(nonbonded_force.getExceptionParameters(index))
             
-        # Create simulation
+        print ('Create simulation...')
         simulation = Simulation(top.topology, system, integrator, self.pltform, self.properties)
         simulation.context.setPositions(gro.positions)
+
         return simulation
 
     # EM simulation
@@ -380,7 +389,12 @@ class MDConductor:
 #        print('self.steps:', self.steps, 'mdresctep:', self.recstep)
         print(ensname+' Simulation...')
         mdname = ensname + index
-        mdlog = mddir + mdname + '.log'
+        if tstate == None:
+            mdlog = mddir + mdname + '.log'
+        else:
+            index_new = index.split('_')[0] +  '_' + index.split('_')[1]
+            mdlog = mddir + ensname + index_new + '.log'
+    
         log_f = open(mdlog, mode='a+')
         log_reporter = StateDataReporter(log_f, self.recstep, time=True,
                                                              totalEnergy=True, temperature=True, density=True,
@@ -414,16 +428,18 @@ class MDConductor:
         simulation.step(self.steps)
         print('Done!\n')
 
+        # output grofile
+        mdgro = sysdir + mdname + '.gro'
         mdpdb = sysdir + mdname + '.pdb'
         positions = simulation.context.getState(getPositions=True).getPositions()
+        pbcbox = simulation.context.getState().getPeriodicBoxVectors()
         PDBFile.writeFile(simulation.topology, positions, open(mdpdb, 'w'))
-
-        root, ext = os.path.splitext(mdpdb)
-        outf = root + '.gro'
-        pdbstructure = pmd.load_file(mdpdb)
-        pdbstructure.save(outf, format='GRO', overwrite=True)
-        del pdbstructure
-        os.remove(mdpdb)
+        topology = md.load(mdpdb).topology
+        positions = list(map(lambda x: x /nanometer , positions))
+        pbcbox = [list(map(lambda x: x /nanometer , pbcbox))]
+        pos = np.array([[pos for pos in positions]])
+        gro = md.formats.GroTrajectoryFile(mdgro, mode='w')
+        gro.write(coordinates=pos, topology=topology, unitcell_vectors=pbcbox)
 
         if check_eneflag == True:
             state = simulation.context.getState(getEnergy=True)
@@ -437,6 +453,7 @@ class MDConductor:
         
         # initialize simulaition.reportes
         simulation.reporters = []
+        os.remove(mdpdb)
         return simulation, energy
 
 
@@ -468,21 +485,18 @@ class REMDConductor(MDConductor, object):
 
     def spread_replicas(self, simulationlist, equilibriation=True):
         print(self.n_replica, self.Ts)
-        if equilibriation == True:
-            simulations = [ '' for i in range(self.n_replica)]
-        elif equilibriation == False:
-            simulations = simulationlist
+        simulations = [ '' for i in range(self.n_replica)]
 
         dt, fric_const, temperature = self.getIntegratorInfo(simulationlist[0].integrator)
         print(dt, fric_const, temperature)
-        system = simulationlist[0].system
-        top = simulationlist[0].topology
-        poses = [ 0 for i in range(self.n_replica)]
+        poses = [ i for i in range(self.n_replica)]
         for i in range(self.n_replica):
             if equilibriation == True:
                 l = 0
-            elif equilibriation == False:
+            else:
                 l = i
+            system = simulationlist[l].system
+            top = simulationlist[l].topology
             poses[i] = simulationlist[l].context.getState(getPositions=True).getPositions()
 
         for i, T_ in enumerate(self.Ts):
@@ -654,18 +668,17 @@ class REMDConductor(MDConductor, object):
                 self.loadFile(inpf)
                 nvtgro, systop = self.preparation(sysdir='SYS/', mddir='MD/')
                 simulation = self.setup(nvtgro, systop)
-                self.mdrun(simulation, 'npt', index)
                 siml = [simulation]
                 simulations = self.spread_replicas(siml, equilibriation=True)
             else:
-                siml = []
+                simulations = []
                 self.loadFile(inpf)  
-                for i in range(self.n_replica):
+                for i, T_ in enumerate(self.Ts):
+                   self.temperature = T_
                    indexj = '_{0:02d}'.format(i+1)
-                   nvtgro , systop = self.preparation(sysdir='SYS/', mddir='MD/', mode=mode, index=indexj)
+                   nvtgro, systop = self.preparation(sysdir='SYS/', mddir='MD/', mode=mode, index=indexj)
                    simulation = self.setup(nvtgro, systop)
-                   siml.append(simulation)
-                simulations = self.spread_replicas(siml, equilibriation=False)
+                   simulations.append(simulation)
             tstates = self.initialize_replicas(simulations)
 
             for iter_ in range(1, niter+1):
