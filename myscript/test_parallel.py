@@ -1,6 +1,3 @@
-from joblib import Parallel, delayed
-from multiprocessing import Pool, Process
-import threading
 import numpy as np
 from myopenmm import *
 import mdtraj as md
@@ -10,6 +7,7 @@ from simtk.unit import *
 from sys import stdout
 import sys
 import os
+import subprocess
 import time
 from functools import wraps
 
@@ -22,6 +20,10 @@ def stop_watch(func) :
         print("{0} takes {1:7.3f} sec.".format(func.__name__, process_time))
         return result
     return wrapper
+
+def mdrun(obj, *args, **kwargs):
+    print('mdrun: global function')
+    return obj.mdrun(*args, **kwargs)
 
 def main0():
     args = sys.argv
@@ -69,44 +71,19 @@ def main(*args):
         args = [md_, sims[i], 'nvt', index]
         arglist.append(args)
 
-# NG (pickle.PicklingError: Could not pickle the task to send it to the workers.)
-# because md_, sim_[i] is SwigPyObject.
-#callback = Parallel(n_jobs=-1, verbose=1)( [delayed(mdrun)(i) for i in arglist] )
-
-# NG (TypeError: can't pickle SwigPyObject objects)
-# because md_, sim_[i] is SwigPyObject.
-#p = Pool(2)
-#output = p.map(wrapper, arglist)
-#p.close()
-
-# NG (Exception: Error invoking kernel: CUDA_ERROR_NOT_INITIALIZED (3))
-# CUDA_ERROR_NOT_INITIALIZED = 3:
-# This indicates that the CUDA driver has not been initialized with cuInit() or that initialization has failed.
-
-#jobs = []
-#for args in arglist:
-#    print('args:', args[0].pltform)
-#    job = Process(target=mdrun, args=(args[0], args[1], args[2], args[3]))
-#    jobs.append(job)
-#    job.start()
-
-#[job.join() for job in jobs]
-
-#print('Finish')
-
     T = []
     for i,args in enumerate(arglist):
         print(args)
         print('thread-id:',i)
-        T.append(threading.Thread(target=args[0].mdrun, args=(args[0], args[1], args[2], args[3])))
+        T.append(MyThread(target=mdrun, args=(args[0], args[1], args[2], args[3])))
 
     for i,t in enumerate(T):
         print('thread-id:', i)
         t.start()
 
     for t in T:
-        t.join()
-    print('Finish!')
+        print(t.join())
 
+    print('Finish!') 
 mds, sims = main0()
 main(mds, sims)
