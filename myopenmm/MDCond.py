@@ -151,22 +151,21 @@ class MDConductor:
                 k = k.ljust(20)
                 f.write('{0}:{1}\n'.format(k, v))
 
-
-    def preparation(self, sysdir='SYS/', mddir='MD/'):
-        
-        print('preparation start...')
-        # Platform input
+    def create_platform(self, deviceindex='0'):
         pltfmname = self.platform
         precision = self.precision
         self.pltform = Platform.getPlatformByName(pltfmname)
         if self.platform == 'CUDA':
-            self.properties = {'CudaPrecision': precision}#, 'CudaDeviceIndex': '0,1'}#, 'CudaUseBlockingSync':False }
+            self.properties = {'Precision': precision, 'DeviceIndex': deviceindex}
         elif self.platform == 'CPU':
             self.properties = {}
         elif self.platform == 'OpenCL':
-            self.properties = {'OpenCLPrecision': precision, 'OpenCLDeviceIndex': '0,1,2,3'}
+            self.properties = {'OpenCLPrecision': precision, 'DeviceIndex': deviceindex}
 
 
+    def preparation(self, sysdir='SYS/', mddir='MD/'):
+        
+        print('preparation start...')
         # System input
         sysgro = sysdir + self.sysfile
         systop = sysdir + self.forcefield
@@ -343,7 +342,7 @@ class MDConductor:
         return integrator
 
 
-    def setup(self, sysgro, systop):
+    def setup(self, sysgro, systop, deviceindex='0'):
         # Create gro
         gro = GromacsGroFile(sysgro)
 
@@ -355,7 +354,9 @@ class MDConductor:
 
         # Create integrator
         integrator = self.create_integrator()
-        
+       
+        # Create platform
+        self.create_platform(deviceindex) 
         print ('Create simulation...')
         simulation = Simulation(top.topology, system, integrator, self.pltform, self.properties)
         simulation.context.setPositions(gro.positions)
@@ -385,35 +386,36 @@ class MDConductor:
         return simulation
 
     def mdrun(self, simulation, ensname, index, mddir='MD/', sysdir='SYS/', 
-              assert_system=True, check_eneflag=False, tstate=None):
-        # ensname simulation
-#        print('self.steps:', self.steps, 'mdresctep:', self.recstep)
-        print(ensname+' Simulation...')
+              assert_system=True, check_eneflag=False, nrep='01', tstate=None, niter=1, niter_tot=1):
+        print('')
+        print(ensname+' Simulation:', 'self.steps:', self.steps, 'mdresctep:', self.recstep)
         mdname = ensname + index
         if tstate == None:
             mdlog = mddir + mdname + '.log'
         else:
-            index_new = index.split('_')[0] +  '_' + index.split('_')[1]
+            index_new = index + '_' + nrep
             mdlog = mddir + ensname + index_new + '.log'
     
         log_f = open(mdlog, mode='a+')
         log_reporter = StateDataReporter(log_f, self.recstep, time=True,
                                                               totalEnergy=True, temperature=True, density=True,
-                                                              progress=True, remainingTime=True, speed=True, totalSteps=self.steps, separator='\t')
+                                                              progress=True, remainingTime=True, speed=True, totalSteps=niter*self.steps, separator='\t')
         simulation.reporters.append(log_reporter)
 
         xtc_flag = False
         print('tstate:', tstate)
         if self.recflag and tstate == None:
             xtc_flag = True
-            print('\nSaving...')
+            print('Save trajectory as xtcfile...')
             mdxtc = mddir + mdname + '.xtc'
             xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
             simulation.reporters.append(xtc_reporter)
         elif self.recflag and tstate == 'SystemID:01':
             xtc_flag = True
-            print('\nREMD Saving...')
-            mdxtc = mddir + mdname + '.xtc'
+            print('Save only tagged trajectory in REMD simulation as xtcflie...')
+            indexj = index + '_{0:04d}'.format(niter)
+            mdname_new = ensname + indexj
+            mdxtc = mddir + mdname_new + '.xtc'
             xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
             simulation.reporters.append(xtc_reporter)
        
@@ -430,17 +432,24 @@ class MDConductor:
         print('Done!\n')
 
         # output grofile
-        mdgro = sysdir + mdname + '.gro'
-        mdpdb = sysdir + mdname + '.pdb'
-        positions = simulation.context.getState(getPositions=True).getPositions()
-        pbcbox = simulation.context.getState().getPeriodicBoxVectors()
-        PDBFile.writeFile(simulation.topology, positions, open(mdpdb, 'w'))
-        topology = md.load(mdpdb).topology
-        positions = list(map(lambda x: x /nanometer , positions))
-        pbcbox = [list(map(lambda x: x /nanometer , pbcbox))]
-        pos = np.array([[pos for pos in positions]])
-        gro = md.formats.GroTrajectoryFile(mdgro, mode='w')
-        gro.write(coordinates=pos, topology=topology, unitcell_vectors=pbcbox)
+        if niter == niter_tot:
+            print('Saving...')
+            if tstate == None:
+                mdgro = sysdir + mdname + '.gro'
+            else:
+                index_new = index + '_' + nrep
+                mdgro = sysdir + ensname + index_new + '.gro'
+            mdpdb = sysdir + mdname + '.pdb'
+            positions = simulation.context.getState(getPositions=True).getPositions()
+            pbcbox = simulation.context.getState().getPeriodicBoxVectors()
+            PDBFile.writeFile(simulation.topology, positions, open(mdpdb, 'w'))
+            topology = md.load(mdpdb).topology
+            positions = list(map(lambda x: x /nanometer , positions))
+            pbcbox = [list(map(lambda x: x /nanometer , pbcbox))]
+            pos = np.array([[pos for pos in positions]])
+            gro = md.formats.GroTrajectoryFile(mdgro, mode='w')
+            gro.write(coordinates=pos, topology=topology, unitcell_vectors=pbcbox)
+            os.remove(mdpdb)
 
         if check_eneflag == True:
             state = simulation.context.getState(getEnergy=True)
@@ -454,7 +463,7 @@ class MDConductor:
         
         # initialize simulaition.reportes
         simulation.reporters = []
-        os.remove(mdpdb)
+
         return simulation, energy
 
 
@@ -504,7 +513,7 @@ class REMDConductor(MDConductor, object):
         return tstates 
 
 
-    def remdrun(self, tstates, ensname, index, niter, mddir='MD', sysdir='SYS/', parallel=False):
+    def remdrun(self, tstates, ensname, index, mddir='MD', sysdir='SYS/', parallel=False, niter=1, niter_tot=1):
         simulations = [row[1] for row in tstates]
         arglist = self.make_arglist(simulations, ensname, index, mddir, sysdir)
 
@@ -512,29 +521,31 @@ class REMDConductor(MDConductor, object):
         if parallel == False:
             for i, args in enumerate(arglist):
                 j = '{0:02d}'.format(i+1)
-                k = '{0:04d}'.format(niter)
-                indexj = index + '_' + j + '_' + k 
-                sim, energy = self.mdrun(args[0], args[1], indexj, args[3], args[4], assert_system=False, check_eneflag=True, tstate=tstates[i][0])
+                k = '{0:04d}'.format(niter) 
+                sim, energy = self.mdrun(args[0], args[1], index, args[3], args[4], 
+                                         assert_system=False, check_eneflag=True, nrep=j, 
+                                         tstate=tstates[i][0], niter=niter, niter_tot=niter_tot)
                 tstates[i][1] = sim
                 enes.append(energy)
         elif parallel == True:
-            for i, args in enumerate(arglist):
+            Threads = []
+            for i,args in enumerate(arglist):
+                print('thread-id:',i)
                 j = '{0:02d}'.format(i+1)
                 k = '{0:04d}'.format(niter)
-                indexj = index + '_' + j + '_' + k
-                
+                Threads.append(mymm.MyThread(target=self.mdrun, args=(args[0], args[1], index, args[3], args[4]),
+                                                                kwargs={'tstate':tstates[i][0], 'niter':niter, 'niter_tot':niter_tot, 
+                                                                        'nrep':j, 'assert_system':False, 'check_eneflag':True}))
+
+            for i,thread in enumerate(Threads):
+                print('thread-id:', i)
+                print('arglist:', arglist[i])
+                thread.start()
+            for i,thread in enumerate(Threads):
+                sim, energy = thread.join()
+                tstates[i][1] = sim
+                enes.append(energy)
         return tstates, enes
-
-
-    def del_intermediate(self, ensname, index, niter, niter_tot, mddir='MD/', sysdir= 'SYS/'):
-        for j in range(self.n_replica):
-            groname = sysdir + ensname + index + '_{0:02d}'.format(j+1) + '_{0:04d}'.format(niter) + '.gro'
-            if not niter == niter_tot:
-                os.remove(groname)
-            if niter == niter_tot:
-                newgroname = sysdir + ensname + index + '_{0:02d}'.format(j+1) + '.gro'
-                os.rename(groname, newgroname)
-
 
     def calc_prob(self, E_list, niter):
         k = AVOGADRO_CONSTANT_NA * BOLTZMANN_CONSTANT_kB
@@ -587,9 +598,9 @@ class REMDConductor(MDConductor, object):
                 self.successes[i] += 1
             else:
                 exchange_flags[i] = False
-        print('accepts:', self.successes)
+        print('accepts :', self.successes)
         print('attempts:', self.attempts)
-        print('indexes:', self.existindex)
+        print('history :', self.existindex)
         print('exchange_flags:', exchange_flags)
 
         # exchange context i-j position index
@@ -634,9 +645,11 @@ class REMDConductor(MDConductor, object):
         for i,s in enumerate(self.successes):
             self.probability[i] = '{0:4.3f}'.format(float(s)/float(self.attempts[i]))
         p = self.probability
-        print('''##############################
+        print('''                  
+##############################
        REMD  Statistics 
 ##############################
+
 ''')
         str_ = 'states:\t' + '\t'.join(['{0:02d}-{1:02d}'.format(i+1, i+2) for i in range(self.n_replica-1)])
         print(str_)
@@ -645,13 +658,17 @@ class REMDConductor(MDConductor, object):
         str_s = 'accept:\t' + '\t'.join(['{0:5d}'.format(s) for s in self.successes[:-1]])
         print(str_s)
         str_a = 'attmps:\t' + '\t'.join(['{0:5d}'.format(s) for s in  self.attempts[:-1]])
+        print(str_a)
         str_ =  '\t'.join(['state{0:02d}'.format(i) for i in range(1, self.n_replica+1)])
         print(str_)
+        print('History:')
         str_i = '\t'.join(['{0:5d}'.format(s) for s in self.existindex])
         print(str_i)
 
 
     def conduct(self, inpf, index, niter=1, equilibriation=True, parallel=False):
+        gpuids = get_gpu_info()[1:]*self.n_replica
+
         if equilibriation == True:
             print('start equilibriation procedure...')
         simulations = []
@@ -670,19 +687,22 @@ class REMDConductor(MDConductor, object):
             elif self.mode == 'REST':
                 self.temperature = self.temperature
                 self.forcefield = tp.split('.')[0] + '_{0:02d}'.format(i+1) + '.top'
+
             nvtgro, systop = self.preparation(sysdir='SYS/', mddir='MD/')
-            simulation = self.setup(nvtgro, systop)
+            if parallel == False:
+                simulation = self.setup(nvtgro, systop)
+            elif parallel == True:
+                simulation = self.setup(nvtgro, systop, gpuids[i])
+
             simulations.append(simulation)
         tstates = self.initialize_replicas(simulations)
 
         for iter_ in range(1, niter+1):
             print('iter:', iter_)
-            tstates, energys = self.remdrun(tstates, 'npt', index, iter_, mddir='MD/', sysdir='SYS/', parallel=False)
+            tstates, energys = self.remdrun(tstates, 'npt', index, mddir='MD/', sysdir='SYS/', parallel=parallel, niter=iter_, niter_tot=niter)
             b_list, p_list = self.calc_prob(energys, iter_)
             if equilibriation == False:
                 tstates = self.exchange(tstates, b_list, p_list, iter_, index)
-            self.del_intermediate('npt', index, iter_, niter, mddir='MD/', sysdir='SYS/')
-
 
         # Check Statistics
         if equilibriation == False:
