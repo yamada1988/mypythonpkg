@@ -23,10 +23,6 @@ def stop_watch(func) :
         return result
     return wrapper
 
-def mdrun(obj, *args, **kwargs):
-    print('mdrun: global function')
-    return obj.mdrun(*args, **kwargs)
-
 def main0():
     args = sys.argv
     stage = args[1]
@@ -102,7 +98,7 @@ def main(*args):
     for i,args in enumerate(arglist):
         print(args)
         print('thread-id:',i)
-        T.append(threading.Thread(target=mdrun, args=(args[0], args[1], args[2], args[3])))
+        T.append(threading.Thread(target=args[0].mdrun, args=(args[0], args[1], args[2], args[3])))
 
     for i,t in enumerate(T):
         print('thread-id:', i)
