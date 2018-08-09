@@ -399,7 +399,7 @@ class MDConductor:
         log_f = open(mdlog, mode='a+')
         log_reporter = StateDataReporter(log_f, self.recstep, time=True,
                                                               totalEnergy=True, temperature=True, density=True,
-                                                              progress=True, remainingTime=True, speed=True, totalSteps=niter*self.steps, separator='\t')
+                                                              progress=True, remainingTime=True, speed=True, totalSteps=niter_tot*self.steps, separator='\t')
         simulation.reporters.append(log_reporter)
 
         xtc_flag = False
