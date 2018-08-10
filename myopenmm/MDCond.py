@@ -14,6 +14,7 @@ from numpy.random import *
 import math
 import threading
 import subprocess
+import time
 
 #  Requirement:
 #  python 2.7, openmm, mdtraj, parmed
@@ -488,7 +489,10 @@ class MDConductor:
 class REMDConductor(MDConductor, object):
     def __init__(self, T_list, mode=None):
         super(REMDConductor, self).__init__()
-        self.Ts = list(map(float, T_list))
+        if mode == 'REMD':
+            self.Ts = list(map(float, T_list))
+        elif mode == 'REST':
+            self.Ts = T_list
         self.n_replica = len(self.Ts)
         self.mode = mode
         # Statistics
@@ -516,7 +520,7 @@ class REMDConductor(MDConductor, object):
     def remdrun(self, simulations, ensname, index, mddir='MD', sysdir='SYS/', parallel=False, niter=1, niter_tot=1):
         arglist = self.make_arglist(simulations, ensname, index, mddir, sysdir)
 
-        enes = []
+        enes = [0.0 for i in range(self.n_replica)]
         if parallel == False:
             for i, args in enumerate(arglist):
                 j = '{0:02d}'.format(i+1)
@@ -525,7 +529,7 @@ class REMDConductor(MDConductor, object):
                                          assert_system=False, check_eneflag=True, nrep=j, 
                                          remdflag= True, niter=niter, niter_tot=niter_tot)
                 simulations[i] = sim
-                enes.append(energy)
+                enes[i] = energy
         elif parallel == True:
             Threads = ['' for i in range(self.n_replica)]
             for i,args in enumerate(arglist):
@@ -543,10 +547,11 @@ class REMDConductor(MDConductor, object):
             for i,thread in enumerate(Threads):
                 sim, energy = thread.join()
                 simulations[i] = sim
-                enes.append(energy)
+                enes[i] = energy
  
             for thread in Threads:
                 thread.stop()   
+        print('\nCheck results...')
         for i,sim in enumerate(simulations):        
             print('ID:', sim.context.sysid)
             print('enes:', enes[i])
@@ -573,9 +578,12 @@ class REMDConductor(MDConductor, object):
                 continue
             elif eo == 'odd' and i % 2 == 0:
                 continue
-            tm = self.Ts[i+1]*kelvin
-            tn = self.Ts[i]*kelvin 
-            Dbeta = (1/(k*tm) - 1/(k*tn))
+            if self.mode == 'REMD':
+                tm = self.Ts[i+1]*kelvin
+                tn = self.Ts[i]*kelvin 
+                Dbeta = (1/(k*tm) - 1/(k*tn))
+            elif self.mode == 'REST':
+                Dbeta = 1/(k*self.temperature*kelvin)
             expbD = math.exp(Dbeta * (E_list[i+1] - E_list[i]))
             b_list[i] = expbD
             p = rand()
@@ -689,7 +697,7 @@ class REMDConductor(MDConductor, object):
                 self.forcefield = self.forcefield
             elif self.mode == 'REST':
                 self.temperature = self.temperature
-                self.forcefield = tp.split('.')[0] + '_{0:02d}'.format(i+1) + '.top'
+                self.forcefield = T_
 
             nvtgro, systop = self.preparation(sysdir='SYS/', mddir='MD/')
             if parallel == False:
@@ -707,7 +715,6 @@ class REMDConductor(MDConductor, object):
             b_list, p_list = self.calc_prob(energys, iter_)
             if equilibriation == False:
                 simulations = self.exchange(simulations, b_list, p_list, iter_, index)
-
         # Check Statistics
         if equilibriation == False:
             self.statistics()
