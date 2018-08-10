@@ -205,9 +205,9 @@ class FEPConductor_ljcustom:
        
         if self.heavyhydrogen:
             print('Hydrogen Mass Repartitioning...')
-            hmass = 1*amu
+            hmass = 4*amu
         else:
-            hmass = 1*amu
+            hmass = None
 
 
         if self.nonbonded_method == 'PME':
