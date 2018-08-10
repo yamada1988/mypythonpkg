@@ -14,7 +14,6 @@ from numpy.random import *
 import math
 import threading
 import subprocess
-import time
 
 #  Requirement:
 #  python 2.7, openmm, mdtraj, parmed
