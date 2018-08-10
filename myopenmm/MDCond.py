@@ -12,6 +12,7 @@ import sys
 import numpy as np
 from numpy.random import *
 import math
+import threading
 import subprocess
 
 #  Requirement:
@@ -364,11 +365,11 @@ class MDConductor:
         return simulation
 
     # EM simulation
-    def minimize(self, simulation, emname, index, mddir='MD'):
+    def minimize(self, simulation, emname, index, sysdir='SYS/'):
         emname = emname + index
 
         print('Minimizing...')
-        empdb = mddir + emname + '.pdb'
+        empdb = sysdir + emname + '.pdb'
         simulation.minimizeEnergy(maxIterations=5000)
 
         print('Check Energy...')
@@ -386,33 +387,35 @@ class MDConductor:
         return simulation
 
     def mdrun(self, simulation, ensname, index, mddir='MD/', sysdir='SYS/', 
-              assert_system=True, check_eneflag=False, nrep='01', tstate=None, niter=1, niter_tot=1):
+              assert_system=True, check_eneflag=False, nrep='01', remdflag=False, niter=1, niter_tot=1):
         print('')
         print(ensname+' Simulation:', 'self.steps:', self.steps, 'mdresctep:', self.recstep)
         mdname = ensname + index
-        if tstate == None:
+        if remdflag == False:
             mdlog = mddir + mdname + '.log'
-        else:
+        elif remdflag == True:
             index_new = index + '_' + nrep
             mdlog = mddir + ensname + index_new + '.log'
     
         log_f = open(mdlog, mode='a+')
         log_reporter = StateDataReporter(log_f, self.recstep, time=True,
-                                                              totalEnergy=True, temperature=True, density=True,
+                                                              totalEnergy=True, potentialEnergy=True, temperature=True, density=True,
                                                               progress=True, remainingTime=True, speed=True, totalSteps=niter_tot*self.steps, separator='\t')
         simulation.reporters.append(log_reporter)
 
         xtc_flag = False
-        print('tstate:', tstate)
-        if self.recflag and tstate == None:
+        if remdflag == True:
+            print('nrep:', nrep, 'ID:', simulation.context.sysid)
+
+        if self.recflag and remdflag == False:
             xtc_flag = True
-            print('Save trajectory as xtcfile...')
+            #print('Save trajectory as xtcfile...')
             mdxtc = mddir + mdname + '.xtc'
             xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
             simulation.reporters.append(xtc_reporter)
-        elif self.recflag and tstate == 'SystemID:01':
+        elif self.recflag and simulation.context.sysid == '01':
             xtc_flag = True
-            print('Save only tagged trajectory in REMD simulation as xtcflie...')
+            #print('Save only tagged trajectory in REMD simulation as xtcflie...')
             indexj = index + '_{0:04d}'.format(niter)
             mdname_new = ensname + indexj
             mdxtc = mddir + mdname_new + '.xtc'
@@ -420,7 +423,7 @@ class MDConductor:
             simulation.reporters.append(xtc_reporter)
        
         if assert_system == True:
-            print('Assert system...')
+            #print('Assert system...')
             state = simulation.context.getState(getEnergy=True)
             energyval = state.getPotentialEnergy()
             print(energyval)
@@ -428,32 +431,31 @@ class MDConductor:
                 print('Energy diverged at infinity.')
                 sys.exit()
 
+        #print('Conducting...')
         simulation.step(self.steps)
-        print('Done!\n')
+        #print('Done!\n')
 
         # output grofile
         if niter == niter_tot:
-            print('Saving...')
-            if tstate == None:
+            #print('Saving...')
+            if remdflag == False:
                 mdgro = sysdir + mdname + '.gro'
-            else:
+            elif remdflag == True:
                 index_new = index + '_' + nrep
                 mdgro = sysdir + ensname + index_new + '.gro'
-            mdpdb = sysdir + mdname + '.pdb'
             positions = simulation.context.getState(getPositions=True).getPositions()
-            pbcbox = simulation.context.getState().getPeriodicBoxVectors()
-            PDBFile.writeFile(simulation.topology, positions, open(mdpdb, 'w'))
-            topology = md.load(mdpdb).topology
-            positions = list(map(lambda x: x /nanometer , positions))
-            pbcbox = [list(map(lambda x: x /nanometer , pbcbox))]
+            box = simulation.context.getState().getPeriodicBoxVectors()
+            pbcbox = [box[0][0], box[1][1], box[2][2], 90.0, 90.0, 90.0]
             pos = np.array([[pos for pos in positions]])
-            gro = md.formats.GroTrajectoryFile(mdgro, mode='w')
-            gro.write(coordinates=pos, topology=topology, unitcell_vectors=pbcbox)
-            os.remove(mdpdb)
+            structure = pmd.openmm.load_topology(simulation.topology, simulation.system, box=pbcbox)
+            structure.coordinates = positions
+            pmd.gromacs.GromacsGroFile.write(structure, dest=mdgro, precision=4)
 
         if check_eneflag == True:
             state = simulation.context.getState(getEnergy=True)
             energy = state.getPotentialEnergy()
+            print("thread name is "+str(threading.current_thread().name))
+            print('energy:', energy)
         else:
             energy = None
 
@@ -506,15 +508,12 @@ class REMDConductor(MDConductor, object):
 
 
     def initialize_replicas(self, simulations):
-        tstates = [[' ', ' '] for i in range(self.n_replica)]
         for i, sim in enumerate(simulations):
-            tstates[i][0] = 'SystemID:{0:02d}'.format(i+1)
-            tstates[i][1] = sim
-        return tstates 
+            setattr(sim.context, 'sysid', '{0:02d}'.format(i+1))
+        return simulations
 
 
-    def remdrun(self, tstates, ensname, index, mddir='MD', sysdir='SYS/', parallel=False, niter=1, niter_tot=1):
-        simulations = [row[1] for row in tstates]
+    def remdrun(self, simulations, ensname, index, mddir='MD', sysdir='SYS/', parallel=False, niter=1, niter_tot=1):
         arglist = self.make_arglist(simulations, ensname, index, mddir, sysdir)
 
         enes = []
@@ -524,28 +523,34 @@ class REMDConductor(MDConductor, object):
                 k = '{0:04d}'.format(niter) 
                 sim, energy = self.mdrun(args[0], args[1], index, args[3], args[4], 
                                          assert_system=False, check_eneflag=True, nrep=j, 
-                                         tstate=tstates[i][0], niter=niter, niter_tot=niter_tot)
-                tstates[i][1] = sim
+                                         remdflag= True, niter=niter, niter_tot=niter_tot)
+                simulations[i] = sim
                 enes.append(energy)
         elif parallel == True:
-            Threads = []
+            Threads = ['' for i in range(self.n_replica)]
             for i,args in enumerate(arglist):
                 print('thread-id:',i)
                 j = '{0:02d}'.format(i+1)
                 k = '{0:04d}'.format(niter)
-                Threads.append(mymm.MyThread(target=self.mdrun, args=(args[0], args[1], index, args[3], args[4]),
-                                                                kwargs={'tstate':tstates[i][0], 'niter':niter, 'niter_tot':niter_tot, 
-                                                                        'nrep':j, 'assert_system':False, 'check_eneflag':True}))
+                thread = mymm.MyThread(target=self.mdrun, args=(args[0], args[1], index, args[3], args[4]),
+                                                                kwargs={'remdflag':True, 'niter':niter, 'niter_tot':niter_tot,
+                                                                        'nrep':j, 'assert_system':False, 'check_eneflag':True})
+                Threads[i]=thread
 
             for i,thread in enumerate(Threads):
-                print('thread-id:', i)
-                print('arglist:', arglist[i])
                 thread.start()
+
             for i,thread in enumerate(Threads):
                 sim, energy = thread.join()
-                tstates[i][1] = sim
+                simulations[i] = sim
                 enes.append(energy)
-        return tstates, enes
+ 
+            for thread in Threads:
+                thread.stop()   
+        for i,sim in enumerate(simulations):        
+            print('ID:', sim.context.sysid)
+            print('enes:', enes[i])
+        return simulations, enes
 
     def calc_prob(self, E_list, niter):
         k = AVOGADRO_CONSTANT_NA * BOLTZMANN_CONSTANT_kB
@@ -576,9 +581,11 @@ class REMDConductor(MDConductor, object):
             p = rand()
             p_list[i] = p
             
+        print('blist:', b_list)
+        print('plist:', p_list)
         return b_list, p_list
 
-    def exchange(self, tstates, b_list, p_list, niter, index):
+    def exchange(self, simulations, b_list, p_list, niter, index):
         if niter % 2 == 1:
             for i in range(1, self.n_replica, 2):
                 self.attempts[i] += 1
@@ -586,11 +593,10 @@ class REMDConductor(MDConductor, object):
             for i in range(0, self.n_replica, 2):
                 self.attempts[i] += 1
 
-        for i in range(0, self.n_replica):
-           if tstates[i][0] == 'SystemID:01':
+        for i,sim in enumerate(simulations):
+           if sim.context.sysid == '01':
                self.existindex[i] += 1 
 
-        simulations = [row[1] for row in tstates]
         exchange_flags = ['' for i in range(self.n_replica)]
         for i, b in enumerate(b_list):
             if b >= 1 or b >= p_list[i]:
@@ -608,14 +614,11 @@ class REMDConductor(MDConductor, object):
         for i, flag in enumerate(exchange_flags):
             if flag == True:
                 dummy_p = contexts[i]
-                dummy_i = tstates[i][0] 
                 contexts[i] = contexts[i+1]
-                tstates[i][0] = tstates[i+1][0]
                 contexts[i+1] = dummy_p
-                tstates[i+1][0] = dummy_i
 
-        for i,tstate in enumerate(tstates):
-            tstate[1].context = contexts[i] 
+        for i,sim in enumerate(simulations):
+            sim.context = contexts[i] 
 
         # write exchange information
         states0 = '# st1\t\t' + '\t\t'.join(['st{0:d}'.format(i+1) for i in range(1, self.n_replica)]) 
@@ -639,7 +642,7 @@ class REMDConductor(MDConductor, object):
         with open(exchange_fname, 'a+') as f:
             f.write(states)
  
-        return tstates       
+        return simulations       
 
     def statistics(self):
         for i,s in enumerate(self.successes):
@@ -659,14 +662,14 @@ class REMDConductor(MDConductor, object):
         print(str_s)
         str_a = 'attmps:\t' + '\t'.join(['{0:5d}'.format(s) for s in  self.attempts[:-1]])
         print(str_a)
+        print('History:')
         str_ =  '\t'.join(['state{0:02d}'.format(i) for i in range(1, self.n_replica+1)])
         print(str_)
-        print('History:')
         str_i = '\t'.join(['{0:5d}'.format(s) for s in self.existindex])
         print(str_i)
 
 
-    def conduct(self, inpf, index, niter=1, equilibriation=True, parallel=False):
+    def conduct(self, inpf, index, niter=1, equilibriation=True, parallel=False, gpuid='0'):
         gpuids = get_gpu_info()[1:]*self.n_replica
 
         if equilibriation == True:
@@ -690,19 +693,20 @@ class REMDConductor(MDConductor, object):
 
             nvtgro, systop = self.preparation(sysdir='SYS/', mddir='MD/')
             if parallel == False:
-                simulation = self.setup(nvtgro, systop)
+                simulation = self.setup(nvtgro, systop, gpuid)
             elif parallel == True:
                 simulation = self.setup(nvtgro, systop, gpuids[i])
 
             simulations.append(simulation)
-        tstates = self.initialize_replicas(simulations)
+        simulations = self.initialize_replicas(simulations)
 
         for iter_ in range(1, niter+1):
             print('iter:', iter_)
-            tstates, energys = self.remdrun(tstates, 'npt', index, mddir='MD/', sysdir='SYS/', parallel=parallel, niter=iter_, niter_tot=niter)
+            energys = []
+            simulations, energys = self.remdrun(simulations, 'npt', index, mddir='MD/', sysdir='SYS/', parallel=parallel, niter=iter_, niter_tot=niter)
             b_list, p_list = self.calc_prob(energys, iter_)
             if equilibriation == False:
-                tstates = self.exchange(tstates, b_list, p_list, iter_, index)
+                simulations = self.exchange(simulations, b_list, p_list, iter_, index)
 
         # Check Statistics
         if equilibriation == False:
