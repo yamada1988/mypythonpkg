@@ -14,6 +14,7 @@ from numpy.random import *
 import math
 import threading
 import subprocess
+import copy
 
 #  Requirement:
 #  python 2.7, openmm, mdtraj, parmed
@@ -421,7 +422,7 @@ class MDConductor:
             mdxtc = mddir + mdname_new + '.xtc'
             xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
             simulation.reporters.append(xtc_reporter)
-       
+
         if assert_system == True:
             #print('Assert system...')
             state = simulation.context.getState(getEnergy=True)
@@ -556,7 +557,7 @@ class REMDConductor(MDConductor, object):
             print('enes:', enes[i])
         return simulations, enes
 
-    def calc_prob(self, E_list, niter):
+    def calc_prob(self, simulations, E_list, niter):
         k = AVOGADRO_CONSTANT_NA * BOLTZMANN_CONSTANT_kB
         b_list = [0 for i in range(self.n_replica)]
         p_list = [1 for i in range(self.n_replica)]
@@ -572,18 +573,54 @@ class REMDConductor(MDConductor, object):
             elist = E_list[1::2]
             elist = elist[:-1]
 
+        if self.mode == 'REST':
+            sims_copy = simulations
+
         for i,e in enumerate(E_list[:-1]):
             if eo == 'even' and i % 2 == 1:
                 continue
             elif eo == 'odd' and i % 2 == 0:
                 continue
+            print('index:', i)
             if self.mode == 'REMD':
-                tm = self.Ts[i+1]*kelvin
-                tn = self.Ts[i]*kelvin 
+                tn = self.Ts[i+1]*kelvin
+                tm = self.Ts[i]*kelvin 
                 Dbeta = (1/(k*tm) - 1/(k*tn))
+                DE_mn = E_list[i+1] - E_list[i]
             elif self.mode == 'REST':
                 Dbeta = 1/(k*self.temperature*kelvin)
-            expbD = math.exp(Dbeta * (E_list[i+1] - E_list[i]))
+                E_nn = E_list[i+1]
+                E_mm = E_list[i]
+                X_m = sims_copy[i].context.getState(getPositions=True).getPositions()
+                X_n = sims_copy[i+1].context.getState(getPositions=True).getPositions() 
+                pbcbox_n = sims_copy[i+1].context.getState().getPeriodicBoxVectors()
+                pbcbox_m = sims_copy[i].context.getState().getPeriodicBoxVectors()
+                #print('pbcboxs:', pbcbox_n, pbcbox_m)
+                sims_copy[i+1].context.setPositions(X_m)
+                sims_copy[i].context.setPositions(X_n)
+                sims_copy[i+1].context.setPeriodicBoxVectors(pbcbox_m[0], pbcbox_m[1], pbcbox_m[2])
+                sims_copy[i].context.setPeriodicBoxVectors(pbcbox_n[0], pbcbox_n[1], pbcbox_n[2])
+                E_nm = sims_copy[i+1].context.getState(getEnergy=True).getPotentialEnergy()
+                E_mn = sims_copy[i].context.getState(getEnergy=True).getPotentialEnergy()
+                         
+                print('E_mm', E_mm)
+                print('E_nn', E_nn)
+                print('E_nm:', E_nm)
+                print('E_mn:', E_mn)
+                D_mn = E_mm - E_mn
+                D_nm = E_nn - E_nm
+                print('D_mn:', D_mn)
+                print('D_nm:', D_nm)
+                DE_mn = D_mn + D_nm
+                print('DE_mn', DE_mn)
+                sims_copy[i+1].context.setPeriodicBoxVectors(pbcbox_n[0], pbcbox_n[1], pbcbox_n[2])
+                sims_copy[i].context.setPeriodicBoxVectors(pbcbox_m[0], pbcbox_m[1], pbcbox_m[2])
+                sims_copy[i+1].context.setPositions(X_n)
+                sims_copy[i].context.setPositions(X_m)
+            DE = -1.0e0*Dbeta * DE_mn
+            if DE < 0:
+                DE = 0
+            expbD = math.exp(-1.0e0*DE)
             b_list[i] = expbD
             p = rand()
             p_list[i] = p
@@ -600,9 +637,12 @@ class REMDConductor(MDConductor, object):
             for i in range(0, self.n_replica, 2):
                 self.attempts[i] += 1
 
-        for i,sim in enumerate(simulations):
-           if sim.context.sysid == '01':
-               self.existindex[i] += 1 
+        if self.mode == 'REMD':
+            for i,sim in enumerate(simulations):
+               if sim.context.sysid == '01':
+                   self.existindex[i] += 1 
+
+        sysids = [sim.context.sysid for sim in simulations]
 
         exchange_flags = ['' for i in range(self.n_replica)]
         for i, b in enumerate(b_list):
@@ -617,15 +657,36 @@ class REMDConductor(MDConductor, object):
         print('exchange_flags:', exchange_flags)
 
         # exchange context i-j position index
-        contexts = [ sim.context for sim in simulations]
-        for i, flag in enumerate(exchange_flags):
-            if flag == True:
-                dummy_p = contexts[i]
-                contexts[i] = contexts[i+1]
-                contexts[i+1] = dummy_p
+        if self.mode == 'REMD':
+            contexts = [ sim.context for sim in simulations]
+            for i, flag in enumerate(exchange_flags):
+                if flag == True:
+                    dummy_p = contexts[i]
+                    contexts[i] = contexts[i+1]
+                    contexts[i+1] = dummy_p
 
-        for i,sim in enumerate(simulations):
-            sim.context = contexts[i] 
+            for i,sim in enumerate(simulations):
+                sim.context = contexts[i] 
+
+        if self.mode == 'REST':
+            positions = [sim.context.getState(getPositions=True).getPositions() for sim in simulations]
+            pbcboxs = [sim.context.getState().getPeriodicBoxVectors() for sim in simulations ]
+            for i, flag in enumerate(exchange_flags):
+                if flag == True:
+                    dummy_p = positions[i]
+                    dummy_b = pbcboxs[i]
+                    dummy_s = sysids[i]
+                    positions[i] = positions[i+1]
+                    pbcboxs[i] = pbcboxs[i+1]
+                    sysids[i] = sysids[i+1]
+                    positions[i+1] = dummy_p
+                    pbcboxs[i+1] = dummy_b
+                    sysids[i+1] = dummy_s
+            for i, sim in enumerate(simulations):
+                sim.context.setPositions(positions[i])
+                sim.context.setPeriodicBoxVectors(pbcboxs[i][0], pbcboxs[i][1], pbcboxs[i][2])
+                sim.context.sysid = sysids[i]
+
 
         # write exchange information
         states0 = '# st1\t\t' + '\t\t'.join(['st{0:d}'.format(i+1) for i in range(1, self.n_replica)]) 
@@ -711,7 +772,7 @@ class REMDConductor(MDConductor, object):
             print('iter:', iter_)
             energys = []
             simulations, energys = self.remdrun(simulations, 'npt', index, mddir='MD/', sysdir='SYS/', parallel=parallel, niter=iter_, niter_tot=niter)
-            b_list, p_list = self.calc_prob(energys, iter_)
+            b_list, p_list = self.calc_prob(simulations, energys, iter_)
             if equilibriation == False:
                 simulations = self.exchange(simulations, b_list, p_list, iter_, index)
         # Check Statistics
