@@ -496,10 +496,12 @@ class REMDConductor(MDConductor, object):
         self.n_replica = len(self.Ts)
         self.mode = mode
         # Statistics
-        self.attempts = [0 for i in range(self.n_replica)]
-        self.successes = [0 for i in range(self.n_replica)]
-        self.probability = [0.0 for i in range(self.n_replica)]
-        self.existindex = [0 for i in range(self.n_replica)]
+        reps = range(self.n_replica)
+        self.attempts = [0 for i in reps]
+        self.successes = [0 for i in reps]
+        self.probability = [0.0 for i in reps]
+        self.existindex = [0 for i in reps]
+        self.history = ['{0:02d}'.format(i+1) for i in reps]
 
     def make_arglist(self, simulations, ensname, index, mddir='MD/', sysdir='SYS/'): 
         arglist = [ []*5 for line in range(self.n_replica)]
@@ -637,10 +639,9 @@ class REMDConductor(MDConductor, object):
             for i in range(0, self.n_replica, 2):
                 self.attempts[i] += 1
 
-        if self.mode == 'REMD':
-            for i,sim in enumerate(simulations):
-               if sim.context.sysid == '01':
-                   self.existindex[i] += 1 
+        for i,sim in enumerate(simulations):
+           if sim.context.sysid == '01':
+               self.existindex[i] += 1 
 
         sysids = [sim.context.sysid for sim in simulations]
 
@@ -687,6 +688,8 @@ class REMDConductor(MDConductor, object):
                 sim.context.setPeriodicBoxVectors(pbcboxs[i][0], pbcboxs[i][1], pbcboxs[i][2])
                 sim.context.sysid = sysids[i]
 
+        self.history.append(sysids)
+
 
         # write exchange information
         states0 = '# st1\t\t' + '\t\t'.join(['st{0:d}'.format(i+1) for i in range(1, self.n_replica)]) 
@@ -712,7 +715,7 @@ class REMDConductor(MDConductor, object):
  
         return simulations       
 
-    def statistics(self):
+    def statistics(self, index):
         for i,s in enumerate(self.successes):
             self.probability[i] = '{0:4.3f}'.format(float(s)/float(self.attempts[i]))
         p = self.probability
@@ -735,7 +738,10 @@ class REMDConductor(MDConductor, object):
         print(str_)
         str_i = '\t'.join(['{0:5d}'.format(s) for s in self.existindex])
         print(str_i)
-
+        with open('history'+index+'.dat', 'wt') as f:
+            for hist in self.history:
+                str_ = '\t'.join([ '{0:02d}'.format(int(h)) for h in hist])
+                f.write(str_+'\n')
 
     def conduct(self, inpf, index, niter=1, equilibriation=True, parallel=False, gpuid='0'):
         gpuids = get_gpu_info()[1:]*self.n_replica
@@ -777,4 +783,4 @@ class REMDConductor(MDConductor, object):
                 simulations = self.exchange(simulations, b_list, p_list, iter_, index)
         # Check Statistics
         if equilibriation == False:
-            self.statistics()
+            self.statistics(index)
