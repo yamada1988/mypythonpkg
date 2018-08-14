@@ -478,8 +478,8 @@ class MDConductor:
         if check_eneflag == True:
             state = simulation.context.getState(getEnergy=True)
             energy = state.getPotentialEnergy()
-            print("thread name is "+str(threading.current_thread().name))
-            print('energy:', energy)
+            #print("thread name is "+str(threading.current_thread().name))
+            #print('energy:', energy)
         else:
             energy = None
 
@@ -576,10 +576,10 @@ class REMDConductor(MDConductor, object):
  
             for thread in Threads:
                 thread.stop()   
-        print('\nCheck results...')
-        for i,sim in enumerate(simulations):        
-            print('ID:', sim.context.sysid)
-            print('enes:', enes[i])
+#        print('\nCheck results...')
+#        for i,sim in enumerate(simulations):        
+#            print('ID:', sim.context.sysid)
+#            print('enes:', enes[i])
         return simulations, enes
 
     def calc_prob(self, simulations, E_list, niter):
@@ -628,14 +628,14 @@ class REMDConductor(MDConductor, object):
                 E_nm = sims_copy[i+1].context.getState(getEnergy=True).getPotentialEnergy()
                 E_mn = sims_copy[i].context.getState(getEnergy=True).getPotentialEnergy()
                          
-                print('E_mm', E_mm)
-                print('E_nn', E_nn)
-                print('E_nm:', E_nm)
-                print('E_mn:', E_mn)
+                #print('E_mm', E_mm)
+                #print('E_nn', E_nn)
+                #print('E_nm:', E_nm)
+                #print('E_mn:', E_mn)
                 D_mn = E_mm - E_mn
                 D_nm = E_nn - E_nm
-                print('D_mn:', D_mn)
-                print('D_nm:', D_nm)
+                #print('D_mn:', D_mn)
+                #print('D_nm:', D_nm)
                 DE_mn = D_mn + D_nm
                 print('DE_mn', DE_mn)
                 sims_copy[i+1].context.setPeriodicBoxVectors(pbcbox_n[0], pbcbox_n[1], pbcbox_n[2])
