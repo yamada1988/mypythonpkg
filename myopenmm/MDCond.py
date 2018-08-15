@@ -1,5 +1,3 @@
-import myopenmm as mymm
-import mdtraj as md
 from distutils.util import strtobool
 from simtk.openmm.app import *
 from simtk.openmm import *
@@ -461,7 +459,7 @@ class MDConductor:
             pos = [pos for pos in positions]
             pbcbox = list(map(lambda x: x/nanometer, pbcbox))
             pos = list(map(lambda x: x/nanometer, pos))
-            print(pos)
+            #print(pos)
             dt_now = datetime.datetime.now()
             date_ = "-{0:%Y-%m-%d-%H}".format(dt_now)
             if os.path.exists(mdgro):
