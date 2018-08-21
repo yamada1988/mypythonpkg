@@ -18,7 +18,6 @@ count = 0
 for i in range(zeroindex+2, finalindex):
     if lines[i]:
         count +=1
-        print('count:', count)
         if count >= num:
             l_ = lines[i].split()
             l_[1] += '_'
