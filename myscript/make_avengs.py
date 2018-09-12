@@ -40,13 +40,13 @@ for j in range(Nmax, Nmin-1, -1):
         for k in range(1, Nblock+1):
             sum_[k-1][ie] = 0.0e0
             for il,l in enumerate(range(Nst, Ned+1)):
-                print('l:', l, 'k:', k)
-                print(esln[il][k-1][ie][2])
+#                print('l:', l, 'k:', k)
+#                print(esln[il][k-1][ie][2])
                 sum_[k-1][ie] += float(esln[il][k-1][ie][2]) 
                 ave[k-1][ie] = sum_[k-1][ie]/ Nconf
                 
             esln_ave[k-1][ie] = [ene_coord[ie], '1', ave[k-1][ie]]
-            print(esln_ave[k-1][ie])
+#            print(esln_ave[k-1][ie])
     for k in range(1, Nblock+1):
         outd0 = inpdir + 'aveERmod_{0:02d}/'.format(Ni)
         outd1 = outd0 + 'soln/'
