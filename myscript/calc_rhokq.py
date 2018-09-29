@@ -94,7 +94,7 @@ with GroTrrReader(fname) as trrfile:
 #                print(k,q,rho[ik][iq][icount])
 
 # Calculate <rho(k,q)>
-print("##### Ensemble Averaged density ({0:3d}K) ####".format(T))
+print("##### Ensemble Averaged density ({0:3d}K) ####".format(int(T)))
 rho_ens = [[0.0e0 for iq in range(qN)] for ik in range(kN)]
 for ik,k in enumerate(K):
     for iq,q in enumerate(Q):
