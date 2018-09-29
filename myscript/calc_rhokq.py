@@ -28,16 +28,18 @@ M = mO + mH + mH #(u)
 kB = 1.3801e-23 #(J K^-1)
 
 # Wave number Parameters
+k0 = 2.0e0*pi / L # (nm^-1)
 dk = 2.0e0*pi / L # (nm^-1)
 #vth = math.sqrt(3.0e0*kB*T/M) # (nm/fs)^-1 = (km/s)^-1
-vth = 10.0e0*pi
-alpha = 1.0
+vth = 2.0e0*pi
+alpha = 2.0
 dq = alpha * 2.0e0*pi / vth
+q0 = 0.010
 kN = 1
-qN = 40
+qN = 10
 
-K = [1/math.sqrt(3) *np.array([kN*dk, kN*dk, kN*dk]) for i in range(1, kN+1)]
-Q = [1/math.sqrt(3) * np.array([i*dq, i*dq, i*dq]) for i in range(1, qN+1)]
+K = [1/math.sqrt(3) *np.array([k0+i*dk, k0+i*dk, k0+i*dk]) for i in range(1, kN+1)]
+Q = [1/math.sqrt(3) * np.array([q0+i*dq, q0+i*dq, q0+i*dq]) for i in range(1, qN+1)]
 
 # rho_i(k,q,t,i)
 rho_i = [[[[0.0e0 for i in range(N)] for t in range(tN+1)] for q in range(qN)] for k in range(kN)]
