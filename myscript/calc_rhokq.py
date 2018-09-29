@@ -4,9 +4,9 @@ import math
 import numpy as np
 
 #
-# Calculate rho(k,q,t) and <rho(k,q> from Gromacs trrfile.
-# This script requires pytrr. (https://github.com/andersle/pytrr)
-# install pytrr using "pip insall pytrr".
+# Calculate rho(k,q,t), <rho(k,q)>, and <drho(k,q,t)drho(-k,-q,0)> from Gromacs trrfile.
+# This script requires pytrr(https://github.com/andersle/pytrr).
+# Install pytrr using "pip insall pytrr".
 #
 
 args = sys.argv
@@ -21,7 +21,8 @@ mH =  1.08 * 1.661e-27 #(kg)
 
 # Phisical Parameters
 N = 3000
-tN = 100
+tN = 500
+dt = 0.10e0 #(ps)
 L = 4.37864 #(nm) 
 #T = 200 #(K)
 M = mO + mH + mH #(u)
@@ -31,12 +32,12 @@ kB = 1.3801e-23 #(J K^-1)
 k0 = 2.0e0*pi / L # (nm^-1)
 dk = 2.0e0*pi / L # (nm^-1)
 #vth = math.sqrt(3.0e0*kB*T/M) # (nm/fs)^-1 = (km/s)^-1
-vth = 2.0e0*pi
-alpha = 2.0
+vth = 10.0e0*pi
+alpha = 1.0
 dq = alpha * 2.0e0*pi / vth
 q0 = 0.010
-kN = 1
-qN = 10
+kN =  3
+qN =  5
 
 K = [1/math.sqrt(3) *np.array([k0+i*dk, k0+i*dk, k0+i*dk]) for i in range(kN)]
 Q = [1/math.sqrt(3) * np.array([q0+i*dq, q0+i*dq, q0+i*dq]) for i in range(qN)]
@@ -97,6 +98,7 @@ with GroTrrReader(fname) as trrfile:
 
 # Calculate <rho(k,q)>
 print("##### Ensemble Averaged density ({0:3d}K) ####".format(int(T)))
+print('# k (wave number) q ( vel fluc) rho(k,q)')
 rho_ens = [[0.0e0 for iq in range(qN)] for ik in range(kN)]
 for ik,k in enumerate(K):
     for iq,q in enumerate(Q):
@@ -105,3 +107,34 @@ for ik,k in enumerate(K):
             rho_ens[ik][iq] += rho[ik][iq][i]
         rho_ens[ik][iq] /= tN
         print(k,q,rho_ens[ik][iq])
+
+
+# Calculate C(k,q,t) = <drho(k,q,t)drho(-k,q,0)>
+thalf = int(tN/2)
+C_kqt = np.array([[[0.0e0 for it in range(thalf+1)] for iq in range(qN)] for ik in range(kN)])
+icount = [0 for i in range(thalf+1)]
+for it0 in range(tN):
+    for t_interval in range(tN-it0+1):
+        if t_interval > thalf:
+            continue
+        icount[t_interval] += 1
+        for ik in range(kN):
+            for iq in range(qN):
+                c = rho[ik][iq][it0]-rho_ens[ik][iq]
+                C_kqt[ik][iq][t_interval] += (rho[ik][iq][it0+t_interval]-rho_ens[ik][iq]) * c.conjugate()
+
+for ik,k in enumerate(K):
+    for iq,q in enumerate(Q):
+        for t_interval in range(thalf+1):
+            C_kqt[ik][iq][t_interval] /= icount[t_interval]
+        for t_interval in range(1, thalf+1):
+            C_kqt[ik][iq][t_interval] /= C_kqt[ik][iq][0]
+        C_kqt[ik][iq][0] /= C_kqt[ik][iq][0]
+
+print("##### C(k,q,t) ({0:3d}K) ####".format(int(T)))
+print('# k (wave number)                   q (vel fluc)                       t(ps)  C(k,q,t)')
+for ik,k in enumerate(K):
+    for iq,q in enumerate(Q):
+        for t_interval in range(thalf+1):
+            t = '{0:5.2f}'.format(t_interval * dt)
+            print(k,q,t,C_kqt[ik][iq][t_interval])
