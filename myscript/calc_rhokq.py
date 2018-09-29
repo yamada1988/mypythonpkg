@@ -38,8 +38,8 @@ q0 = 0.010
 kN = 1
 qN = 10
 
-K = [1/math.sqrt(3) *np.array([k0+i*dk, k0+i*dk, k0+i*dk]) for i in range(1, kN+1)]
-Q = [1/math.sqrt(3) * np.array([q0+i*dq, q0+i*dq, q0+i*dq]) for i in range(1, qN+1)]
+K = [1/math.sqrt(3) *np.array([k0+i*dk, k0+i*dk, k0+i*dk]) for i in range(kN)]
+Q = [1/math.sqrt(3) * np.array([q0+i*dq, q0+i*dq, q0+i*dq]) for i in range(qN)]
 
 # rho_i(k,q,t,i)
 rho_i = [[[[0.0e0 for i in range(N)] for t in range(tN+1)] for q in range(qN)] for k in range(kN)]
