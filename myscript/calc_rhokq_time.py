@@ -21,6 +21,92 @@ import time
 #
 #bash time.sh > timelog.dat
 #
+#result:
+#===num_frames:  100===
+#Read trrfile time: 4.0275678634643555
+#Calculate <rho(k,q)> time: 0.7862162590026855
+#Calculate C(k,q,t) time: 0.0072154998779296875
+#write file time: 0.006284236907958984
+#total time: 4.827349662780762
+ 
+#===num_frames:  200===
+#Read trrfile time: 8.450029134750366
+#Calculate <rho(k,q)> time: 1.577906608581543
+#Calculate C(k,q,t) time: 0.027846574783325195
+#write file time: 0.012517690658569336
+#total time: 10.068350076675415
+ 
+#===num_frames:  300===
+#Read trrfile time: 12.38418173789978
+#Calculate <rho(k,q)> time: 2.380192279815674
+#Calculate C(k,q,t) time: 0.06324076652526855
+#write file time: 0.016291379928588867
+#total time: 14.843965291976929
+ 
+#===num_frames:  400===
+#Read trrfile time: 16.628856658935547
+#Calculate <rho(k,q)> time: 3.169315814971924
+#Calculate C(k,q,t) time: 0.10999298095703125
+#write file time: 0.03341960906982422
+#total time: 19.930981636047363
+ 
+#===num_frames:  500===
+#Read trrfile time: 20.03941035270691
+#Calculate <rho(k,q)> time: 3.935575008392334
+#Calculate C(k,q,t) time: 0.1746840476989746
+#write file time: 0.026569604873657227
+#total time: 24.1763014793396
+ 
+#===num_frames:  600===
+#Read trrfile time: 24.21495819091797
+#Calculate <rho(k,q)> time: 4.74502158164978
+#Calculate C(k,q,t) time: 0.2578587532043457
+#write file time: 0.03341960906982422
+#total time: 29.251312255859375
+ 
+#===num_frames:  700===
+#Read trrfile time: 28.1339271068573
+#Calculate <rho(k,q)> time: 5.788179159164429
+#Calculate C(k,q,t) time: 0.34491825103759766
+#write file time: 0.03717231750488281
+#total time: 34.30425810813904
+ 
+#===num_frames:  800===
+#Read trrfile time: 33.28687334060669
+#Calculate <rho(k,q)> time: 6.744075775146484
+#Calculate C(k,q,t) time: 0.4389834403991699
+#write file time: 0.04378199577331543
+#total time: 40.51376724243164
+ 
+#===num_frames:  900===
+#Read trrfile time: 36.22404408454895
+#Calculate <rho(k,q)> time: 7.4806249141693115
+#Calculate C(k,q,t) time: 0.5475361347198486
+#write file time: 0.04688286781311035
+#total time: 44.299171447753906
+ 
+#===num_frames: 1000===
+#Read trrfile time: 40.170594453811646
+#Calculate <rho(k,q)> time: 8.021784543991089
+#Calculate C(k,q,t) time: 0.6901025772094727
+#write file time: 0.05596137046813965
+#total time: 48.9384970664978
+ 
+#===num_frames: 1500===
+#Read trrfile time: 63.82360339164734
+#Calculate <rho(k,q)> time: 12.624643325805664
+#Calculate C(k,q,t) time: 1.56199049949646
+#write file time: 0.08169889450073242
+#total time: 78.09200096130371
+ 
+#===num_frames: 2000===
+#Read trrfile time: 81.69437336921692
+#Calculate <rho(k,q)> time: 16.01133918762207
+#Calculate C(k,q,t) time: 2.703766345977783
+#write file time: 0.10345339775085449
+#total time: 100.51300549507141
+
+
 
 #
 # Calculate rho(k,q,t), <rho(k,q)>, and <drho(k,q,t)drho(-k,-q,0)> from Gromacs trrfile.
