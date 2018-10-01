@@ -42,7 +42,7 @@ t = time.time()
 print("dump trrfile to python picklefile (COM information).")
 with GroTrrReader(fname) as trrfile:
     it = 0
-    for frame in tqdm(trrfile):
+    for frame in tqdm(trrfile, total=tN):
         if it >= tN:
             break
         data = trrfile.get_data()
