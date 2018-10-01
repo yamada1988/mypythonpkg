@@ -7,6 +7,20 @@ import time
 #
 # Time measuring version
 #
+# time.sh: 
+##!/bin/bash
+
+#for t in 100 200 300 400 500 600 700 800 900 1000 1500 2000
+#do
+
+# t=`printf %5d $t`
+# echo "===num_frames:${t}==="
+# python script/calc_rhokq.py MD/sample0001_180.trr 1 1 $t
+# echo " "
+#done
+#
+#bash time.sh > timelog.dat
+#
 
 #
 # Calculate rho(k,q,t), <rho(k,q)>, and <drho(k,q,t)drho(-k,-q,0)> from Gromacs trrfile.
@@ -32,7 +46,7 @@ mH =  1.08 * 1.661e-27 #(kg)
 
 # Phisical Parameters
 N =  3000
-tN =  100
+tN =  int(args[4])
 dt = 0.010e0 #(ps)
 L = 4.37864 #(nm) 
 M = mO + mH + mH #(kg)
@@ -107,7 +121,6 @@ for it in range(tN):
 
 
 # Calculate <rho(k,q)>
-print("##### Ensemble Averaged density ({0:3d}K) ####".format(int(T)))
 rho_ens = [[0.0e0 for iq in range(qN)] for ik in range(kN)]
 for iq,q in enumerate(Q):
     for ik,k in enumerate(K):
@@ -120,7 +133,7 @@ print("Calculate <rho(k,q)> time:", time.time()-t1)
 t2 = time.time()
 # Calculate C(k,q,t) = <drho(k,q,t)drho(-k,q,0)>
 thalf = int(tN/5)
-C_kqt = np.array([[[0.0e0 for it in range(thalf+1)] for iq in range(qN)] for ik in range(kN)])
+C_kqt = np.array([[[complex(0.0e0, 0.0e0) for it in range(thalf+1)] for iq in range(qN)] for ik in range(kN)])
 icount = [0 for i in range(thalf+1)]
 for it0 in range(tN):
     for t_interval in range(tN-it0+1):
@@ -129,8 +142,9 @@ for it0 in range(tN):
         icount[t_interval] += 1
         for ik in range(kN):
             for iq in range(qN):
-                c = rho[ik][iq][it0]-rho_ens[ik][iq]
-                C_kqt[ik][iq][t_interval] += (rho[ik][iq][it0+t_interval]-rho_ens[ik][iq]) * c.conjugate()
+                ct = rho[ik][iq][it0+t_interval]-rho_ens[ik][iq]
+                c0 = rho[ik][iq][it0]-rho_ens[ik][iq] 
+                C_kqt[ik][iq][t_interval] += ct * c0.conjugate()
 
 
 for ik,k in enumerate(K):
@@ -143,6 +157,7 @@ for ik,k in enumerate(K):
 
 print("Calculate C(k,q,t) time:", time.time()-t2)
 
+t3 = time.time()
 for ik,k in enumerate(K):
     for iq,q in enumerate(Q):
         ofname = 'DAT/Cnk{0:02d}nq{1:02d}_{2:d}.dat'.format(nk,nq,int(T))
@@ -153,3 +168,6 @@ for ik,k in enumerate(K):
             t = '{0:5.2f}'.format(t_interval * dt)
             with open(ofname, 'a+') as f:
                 f.write('{0:5.2f}\t{1:9.7f}\n'.format(float(t), C_kqt[ik][iq][t_interval]))
+
+print("write file time:", time.time()-t3)
+print("total time:", time.time()-t0)
