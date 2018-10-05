@@ -58,8 +58,8 @@ print('load picklefile time:', time.time() - t)
 N =  len(R[0])
 dt = 0.010e0 #(ps)
 L = box_size #(nm) 
-mO = 16.00 * 1.661e-27 #(kg)
-mH =  1.008* 1.661e-27 #(kg)
+mO = 16.00e-27 #(kg)
+mH =  1.008e-27 #(kg)
 Minv = 1/(mO + mH + mH) #(kg^-1)
 kB = 1.3801e-23 #(J K^-1)
 
@@ -73,6 +73,8 @@ dq = alpha * 2.0e0*pi / vth
 q0 = 0.0e0
 kN =  1
 qN =  1
+
+t0 = time.time()
 
 K = np.array([1/math.sqrt(3) *np.array([k0+nk*dk, k0+nk*dk, k0+nk*dk]) for i in range(kN)])
 Q = np.array([1/math.sqrt(3) * np.array([q0+nq*dq, q0+nq*dq, q0+nq*dq]) for i in range(qN)])
@@ -90,28 +92,16 @@ rho_i = [[[[0.0e0 for i in range(N)] for t in range(tN+1)] for q in range(qN)] f
 # rho(k,q,t)
 rho = [[[0.0e0 for t in range(tN+1)] for q in range(qN)] for k in range(kN)]
 
+t1 = time.time()
 # Calculate rho(k,q,t)
-for it in range(tN):
-    for iq,q in enumerate(Q):
-        for ik,k in enumerate(K):
-            print(k)
-            print(R[it][0])
-            print(k*R[it][0])
-            rho[ik][iq][it] = 0.0e0
-            theta = [np.dot(k,R[it][i]) + np.dot(q,V[it][i]) for i in range(N)]
-            rho_i[ik][iq][it] = [complex(math.cos(theta[i]), -math.sin(theta[i])) for i in range(N)]
-            rho[ik][iq][it] = np.sum(rho_i[ik][iq][it], axis=0)
+k = np.array([1,1,1])
+q = np.array([1,1,1])
 
+theta_i = [[[[((np.dot(k,R[it][i])+np.dot(q,V[it][i]))*1.0j) for i in range(N)] for it in range(tN)] for q in Q] for k in K]
+print(theta_i)
 
-# Calculate <rho(k,q)>
-rho_ens = [[0.0e0 for iq in range(qN)] for ik in range(kN)]
-for iq,q in enumerate(Q):
-    for ik,k in enumerate(K):
-        rho_ens[ik][iq] = np.sum(rho[ik][iq], axis=0)
-        rho_ens[ik][iq] /= tN
-
-print("Calculate <rho(k,q)> time:", time.time()-t1)
-
+rho = [[[sum([math.e(((np.dot(k,R[it][i])+np.dot(q,V[it][i]))*-1.0j)) for i in range(N)]) for it in range(tN)] for q in Q] for k in K]
+print("Calculate rho(k,q,t) time:", time.time()-t1)
 
 t2 = time.time()
 # Calculate C(k,q,t) = <drho(k,q,t)drho(-k,q,0)>
@@ -125,9 +115,9 @@ for it0 in range(tN):
         icount[t_interval] += 1
         for ik in range(kN):
             for iq in range(qN):
-                ct = rho[ik][iq][it0+t_interval]-rho_ens[ik][iq]
-                c0 = rho[ik][iq][it0]-rho_ens[ik][iq] 
-                C_kqt[ik][iq][t_interval] += ct * c0.conjugate()
+                ct = rho[ik][iq][it0+t_interval]
+                c0 = rho[ik][iq][it0].conjugate()
+                C_kqt[ik][iq][t_interval] += ct * c0
 
 
 for ik,k in enumerate(K):
