@@ -6,6 +6,7 @@ import numpy as np
 import pickle
 import time
 from tqdm import tqdm
+from joblib import delayed, Parallel
 
 #
 # Read data from Gromacs trrfile and write center-of-mass information to picklefile.
@@ -72,8 +73,8 @@ with GroTrrReader(fname) as trrfile:
     it = 0
     for frame in tqdm(trrfile, total=tN):
         data = trrfile.get_data()
-        R[it] = [[np.dot(data['x'][3*i:3*i+3],m)*Minv] for i in range(N)]
-        V[it] = [[np.dot(data['v'][3*i:3*i+3],m)*Minv] for i in range(N)]
+        R[it] = [np.dot(data['x'][3*i:3*i+3],m)*Minv for i in range(N)]
+        V[it] = [np.dot(data['v'][3*i:3*i+3],m)*Minv for i in range(N)]
 #        print(R[it], V[it])
         it += 1
 
@@ -87,9 +88,3 @@ ofname = sysname + '_{0:03d}'.format(T) + '.pickle'
 with open(ofname, mode='wb') as f:
     pickle.dump(cominfo, f)
 print('dump picklefile time:', time.time() - t)
-
-t = time.time()
-with open(ofname, mode='rb') as f:
-    d = pickle.load(f)
-print(d)
-print('load picklefile time:', time.time() - t)
