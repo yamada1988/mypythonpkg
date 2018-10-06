@@ -87,20 +87,13 @@ for q in Q:
         qi = round(qi, 6)
         q[i] = qi
 
-# rho_i(k,q,t,i)
-rho_i = [[[[0.0e0 for i in range(N)] for t in range(tN+1)] for q in range(qN)] for k in range(kN)]
-# rho(k,q,t)
-rho = [[[0.0e0 for t in range(tN+1)] for q in range(qN)] for k in range(kN)]
-
 t1 = time.time()
 # Calculate rho(k,q,t)
-k = np.array([1,1,1])
-q = np.array([1,1,1])
-
-theta_i = [[[[((np.dot(k,R[it][i])+np.dot(q,V[it][i]))*1.0j) for i in range(N)] for it in range(tN)] for q in Q] for k in K]
-print(theta_i)
-
-rho = [[[sum([math.e(((np.dot(k,R[it][i])+np.dot(q,V[it][i]))*-1.0j)) for i in range(N)]) for it in range(tN)] for q in Q] for k in K]
+rho = [[0 for k in K] for q in Q]
+for ik,k in enumerate(K):
+    for iq,q in enumerate(Q):
+        theta = np.dot(R,k) + np.dot(V,q)
+        rho[ik][iq] = np.sum(np.exp(theta*-1j), axis=1)
 print("Calculate rho(k,q,t) time:", time.time()-t1)
 
 t2 = time.time()
