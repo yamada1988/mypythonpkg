@@ -88,38 +88,23 @@ for q in Q:
         q[i] = qi
 
 t1 = time.time()
-# Calculate rho(k,q,t)
 rho = [[0 for k in K] for q in Q]
+# Calculate rho(k,q,t)
 for ik,k in enumerate(K):
     for iq,q in enumerate(Q):
         theta = np.dot(R,k) + np.dot(V,q)
         rho[ik][iq] = np.sum(np.exp(theta*-1j), axis=1)
+print(rho[ik][iq])
 print("Calculate rho(k,q,t) time:", time.time()-t1)
 
 t2 = time.time()
 # Calculate C(k,q,t) = <drho(k,q,t)drho(-k,q,0)>
-thalf = int(tN/5)
-C_kqt = np.array([[[complex(0.0e0, 0.0e0) for it in range(thalf+1)] for iq in range(qN)] for ik in range(kN)])
-icount = [0 for i in range(thalf+1)]
-for it0 in range(tN):
-    for t_interval in range(tN-it0+1):
-        if t_interval > thalf:
-            continue
-        icount[t_interval] += 1
-        for ik in range(kN):
-            for iq in range(qN):
-                ct = rho[ik][iq][it0+t_interval]
-                c0 = rho[ik][iq][it0].conjugate()
-                C_kqt[ik][iq][t_interval] += ct * c0
-
-
-for ik,k in enumerate(K):
-    for iq,q in enumerate(Q):
-        for t_interval in range(thalf+1):
-            C_kqt[ik][iq][t_interval] /= icount[t_interval]
-        for t_interval in range(1, thalf+1):
-            C_kqt[ik][iq][t_interval] /= C_kqt[ik][iq][0]
-        C_kqt[ik][iq][0] /= C_kqt[ik][iq][0]
+thalf = int(tN)
+C_kqt = [[[0.0 for it in range(tN)] for q in Q] for k in K]
+for ik in range(kN):
+    for iq in range(qN):
+        C_kqt[ik][iq] = np.correlate(rho[ik][iq], rho[ik][iq], 'full')
+        C_kqt[ik][iq] /= C_kqt[ik][iq][tN] 
 
 print("Calculate C(k,q,t) time:", time.time()-t2)
 
@@ -130,10 +115,10 @@ for ik,k in enumerate(K):
         with open(ofname, 'wt') as f:
             f.write('# k=[{0[0]},{0[1]},{0[2]}]\n# q=[{1[0]},{1[1]},{1[2]}]\n# t(ps) C(k,q,t)\n'.format(k,q))
 
-        for t_interval in range(thalf+1):
+        for t_interval in range(thalf-1):
             t = '{0:5.2f}'.format(t_interval * dt)
             with open(ofname, 'a+') as f:
-                f.write('{0:5.2f}\t{1:9.7f}\n'.format(float(t), C_kqt[ik][iq][t_interval]))
+                f.write('{0:5.2f}\t{1:9.7f}\t{2:9.7f}\n'.format(float(t), C_kqt[ik][iq][tN+t_interval].real, C_kqt[ik][iq][tN+t_interval].imag))
 
 print("write file time:", time.time()-t3)
 print("total time:", time.time()-t0)
