@@ -47,13 +47,16 @@ class MDConductor:
                         'pme-ftol' : 1.0e-5,     
                         'nvtstep' : 0, 
                         'nptstep' : 0, 
+                        'nvestep' : 0,
                         'mdstep' :  0, 
+                        'nverecstep': 0,
                         'nvteqrecstep' : 0, 
                         'npteqrecstep' : 0,
                         'mdrecstep' : 0, 
                         'emflag' : False, 
                         'nvtflag' : False, 
                         'nptflag' : False, 
+                        'nverecflag': False,
                         'nvtrecflag' : False, 
                         'nptrecflag' : False, 
                         'mdrecflag' :  False, 
@@ -111,6 +114,7 @@ class MDConductor:
         self.mdensemble = InpDict['mdensemble']
         self.nvtstep = int(InpDict['nvtstep'])
         self.nptstep = int(InpDict['nptstep'])
+        self.nvestep = int(InpDict['nvestep'])
         self.mdstep = int(InpDict['mdstep'])
         self.setPME = InpDict['setPME']
         self.pme_alpha = float(InpDict['pme-alpha'])
@@ -118,12 +122,15 @@ class MDConductor:
         self.pme_ny = int(InpDict['pme-ny'])
         self.pme_nz = int(InpDict['pme-nz'])
         self.pme_ftol = float(InpDict['pme-ftol'])
+        self.nverecstep = int(InpDict['nverecstep'])
         self.nvteqrecstep = int(InpDict['nvteqrecstep'])
         self.npteqrecstep = int(InpDict['npteqrecstep'])
         self.mdrecstep = int(InpDict['mdrecstep'])
         self.emflag = InpDict['emflag']
+        self.nveflag = InpDict['nveflag']
         self.nvtflag = InpDict['nvtflag']
         self.nptflag = InpDict['nptflag']
+        self.nverecflag = InpDict['nverecflag']
         self.nvtrecflag = InpDict['nvtrecflag']
         self.nptrecflag = InpDict['nptrecflag']
         self.mdrecflag = InpDict['mdrecflag']
@@ -148,6 +155,7 @@ class MDConductor:
         self.platform = InpDict['platform']
         self.precision = InpDict['precision']
         self.recflag = InpDict['recflag']
+        self.reporterformat = InpDict['reporterformat']
 
         with open('openmm.out', 'wt') as f:
             print('writing openmm.out...')
@@ -165,9 +173,6 @@ class MDConductor:
             self.properties = {}
         elif self.platform == 'OpenCL':
             self.properties = {'OpenCLPrecision': precision, 'DeviceIndex': deviceindex}
-        print('====Platform Information====')
-        print(self.pltform)
-        print(self.properties)
 
 
     def preparation(self, sysdir='SYS/', mddir='MD/'):
@@ -229,6 +234,11 @@ class MDConductor:
         
 
         # Check ensembleflag
+        if self.nveflag:
+            nvestep = self.nvestep
+        else:
+            nvestep = 0
+
         if self.nvtflag:
             nvtstep = self.nvtstep  
         else:
@@ -244,8 +254,12 @@ class MDConductor:
         else:
             nptstep = 0       
 
-        self.steps = nvtstep + nptstep 
-
+        self.steps = nvestep + nvtstep + nptstep 
+        if self.nverecflag:
+            nverecstep = self.nverecstep
+            self.recflag = True
+        else:
+            nverecstep = 0
         if self.nvtrecflag:
             nvteqrecstep = self.nvteqrecstep
             self.recflag = True
@@ -262,7 +276,7 @@ class MDConductor:
             self.recflag = True
         else:
             mdrecstep = 0
-        self.recstep = nvteqrecstep + npteqrecstep + mdrecstep
+        self.recstep = nverecstep + nvteqrecstep + npteqrecstep + mdrecstep
 
         if self.simlogflag:
             simlogstep = self.simlogstep
@@ -312,7 +326,7 @@ class MDConductor:
             forces = {system.getForce(index).__class__.__name__: system.getForce(index) for index in range(system.getNumForces())}
             nonbonded_force = forces['NonbondedForce']
 
-            solute_particles = core_particles + ghost_particles
+            solute_particles = list(core_particles) + list(ghost_particles)
             slt_param = [[]]*len(solute_particles) 
             for index in solute_particles:
                 slt_param[index] = nonbonded_force.getParticleParameters(index)
@@ -376,7 +390,7 @@ class MDConductor:
         print ('Create simulation...')
         simulation = Simulation(top.topology, system, integrator, self.pltform, self.properties)
         simulation.context.setPositions(gro.positions)
-
+        simulation.context.setVelocitiesToTemperature(self.temperature)
         return simulation
 
     # EM simulation
@@ -419,15 +433,22 @@ class MDConductor:
         simulation.reporters.append(log_reporter)
 
         xtc_flag = False
+        hdf5_flag = False
         if remdflag == True:
             print('nrep:', nrep, 'ID:', simulation.context.sysid)
 
-        if self.recflag and remdflag == False:
+        if self.recflag and self.reporterformat == 'XTC' and remdflag == False:
             xtc_flag = True
             #print('Save trajectory as xtcfile...')
             mdxtc = mddir + mdname + '.xtc'
             xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
             simulation.reporters.append(xtc_reporter)
+        elif self.recflag and self.reporterformat == 'HDF5' and remdflag == False:
+            hdf5_flag = True
+            #print('Save trajectory as xtcfile...')
+            mdh = mddir + mdname + '.h5'
+            hdf5_reporter = md.reporters.HDF5Reporter(mdh, self.recstep, kineticEnergy=False,velocities=True)
+            simulation.reporters.append(hdf5_reporter)
         elif self.recflag and simulation.context.sysid == '01':
             xtc_flag = True
             #print('Save only tagged trajectory in REMD simulation as xtcflie...')
@@ -473,7 +494,7 @@ class MDConductor:
                 f.write('Generated by OpenMM: Date = {0:%Y-%m-%d %H:%M:%S}\n'.format(dt_now))
                 f.write(' '+self.anum+'\n')
                 for i,line in enumerate(self.lines[:-1]):
-                    l = line[:20] + '{0:8.5f}{1:8.5f}{2:8.5f}\n'.format(pos[i][0], pos[i][1], pos[i][2])
+                    l = line[:20] + '{0:8.4f}{1:8.4f}{2:8.4f}\n'.format(pos[i][0], pos[i][1], pos[i][2])
                     f.write(l)
                 f.write('{0:7.4f}\t{0:7.4f}\t{0:7.4f}\n'.format(pbcbox[0], pbcbox[1], pbcbox[2]))
 
@@ -489,7 +510,8 @@ class MDConductor:
         log_f.close()
         if xtc_flag == True:
             xtc_reporter.close()
-        
+        elif hdf5_flag == True:
+            hdf5_reporter.close() 
         # initialize simulaition.reportes
         simulation.reporters = []
 
@@ -561,7 +583,6 @@ class REMDConductor(MDConductor, object):
         elif parallel == True:
             Threads = ['' for i in range(self.n_replica)]
             for i,args in enumerate(arglist):
-        #        print('thread-id:',i)
                 j = '{0:02d}'.format(i+1)
                 k = '{0:04d}'.format(niter)
                 thread = mymm.MyThread(target=self.mdrun, args=(args[0], args[1], index, args[3], args[4]),
@@ -750,7 +771,6 @@ class REMDConductor(MDConductor, object):
 ##############################
        REMD  Statistics 
 ##############################
-
 ''')
         str_ = 'states:\t' + '\t'.join(['{0:02d}-{1:02d}'.format(i+1, i+2) for i in range(self.n_replica-1)])
         print(str_)
@@ -802,7 +822,7 @@ class REMDConductor(MDConductor, object):
         simulations = self.initialize_replicas(simulations)
 
         for iter_ in range(1, niter+1):
-            print('==============')
+            print('===================')
             print('iter:', iter_)
             energys = []
             simulations, energys = self.remdrun(simulations, 'npt', index, mddir='MD/', sysdir='SYS/', parallel=parallel, niter=iter_, niter_tot=niter)
