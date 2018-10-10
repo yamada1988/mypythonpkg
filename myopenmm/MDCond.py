@@ -54,6 +54,7 @@ class MDConductor:
                         'npteqrecstep' : 0,
                         'mdrecstep' : 0, 
                         'emflag' : False, 
+                        'nveflag': False,
                         'nvtflag' : False, 
                         'nptflag' : False, 
                         'nverecflag': False,
