@@ -534,7 +534,7 @@ class MDConductor:
                     f.write('CRYST1  {0:7.3f}  {0:7.3f}  {0:7.3f}  90.00  90.00  90.00 P 1           1\n'.format(10.0e0*pbcbox[0]))
                     f.write(self.anum[1]+'\n')
                     for i,line in enumerate(self.lines[:-2]):
-                        l = line[:30] + ' {0:7.3f} {1:7.3f} {2:7.3f}'.format(10.0e0*pos[i][0], 10.0e0*pos[i][1], 10.0e0*pos[i][2])
+                        l = line[:30] + ' {0:7.3f} {1:7.3f} {2:7.3f}  '.format(10.0e0*pos[i][0], 10.0e0*pos[i][1], 10.0e0*pos[i][2])
                         l += line[56:]+'\n'
                         f.write(l)
                     f.write('TER\nENDMDL')
