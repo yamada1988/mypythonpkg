@@ -81,7 +81,8 @@ class MDConductor:
                         'path_ndxfile' : None,
                         'platform' : 'CUDA', 
                         'precision' : 'double',
-                        'recflag': False}
+                        'recflag': False,
+                        'virtualflag': False}
         
         print('Initialize...')               
     def loadFile(self, file):
@@ -157,6 +158,7 @@ class MDConductor:
         self.precision = InpDict['precision']
         self.recflag = InpDict['recflag']
         self.reporterformat = InpDict['reporterformat']
+        self.virtualflag = InpDict['virtualflag']
 
         with open('openmm.out', 'wt') as f:
             print('writing openmm.out...')
@@ -185,9 +187,12 @@ class MDConductor:
 
         with open(sysgro, 'rt') as f:
             lines = [line.strip('\n') for line in f]
-            self.anum = lines[1]
-            self.lines = lines[2:]
-
+            if self.fileformat == 'GRO':
+                self.anum = lines[1]
+                self.lines = lines[2:]
+            elif self.fileformat == 'PDB':
+                self.anum = [lines[1],lines[3]]
+                self.lines = lines[4:]
         # System output
         mddir = 'MD/'
 
@@ -205,7 +210,6 @@ class MDConductor:
         self.top = top
         return top
 
-
     def create_system(self, top):
         # Create system
         if self.heavyhydrogen:
@@ -216,13 +220,19 @@ class MDConductor:
 
         if self.nonbonded_method == 'PME':
             print('set PME...')
-            if self.nonbonded_cutoffflag:
+            if self.nonbonded_cutoffflag and self.fileformat == 'GRO':
                 nonbonded_cutoff = self.nonbonded_cutoff   
                 system = top.createSystem(hydrogenMass=self.hmass,nonbondedMethod=PME, 
                                           nonbondedCutoff=self.nonbonded_cutoff,
-                                          constraints=self.constraints)
+                                          constraints=self.constraints,rigidWater=True)
 
-            else:
+            elif self.nonbonded_cutoffflag and self.fileformat == 'PDB':
+                nonbonded_cutoff = self.nonbonded_cutoff   
+                system = top.createSystem(self.modeller.topology, hydrogenMass=self.hmass,nonbondedMethod=PME, 
+                                          nonbondedCutoff=self.nonbonded_cutoff,
+                                          constraints=self.constraints,rigidWater=True)
+
+            elif not self.nonbonded_cutoff_flag:
                 system = top.createSystem(hydrogenMass=self.hmass,nonbondedMethod=PME,
                                           constraints=self.constraints)        
 
@@ -373,12 +383,20 @@ class MDConductor:
         return integrator
 
 
-    def setup(self, sysgro, systop, deviceindex='0'):
+    def setup(self, sysgro, systop, deviceindex='0',sysdir='SYS/'):
         # Create gro
-        gro = GromacsGroFile(sysgro)
+        if self.fileformat == 'GRO':
+            gro = GromacsGroFile(sysgro)
+            # Create top
+            top = self.create_top(systop, gro)
 
-        # Create top
-        top = self.create_top(systop, gro)
+        elif self.fileformat == 'PDB':
+            pdb = PDBFile(sysgro)
+            # Create top
+            top = ForceField(sysdir+self.forcefield)
+            modeller = Modeller(pdb.topology, pdb.positions)
+            modeller.addExtraParticles(top)
+            self.modeller = modeller
 
         # Create system
         system = self.create_system(top)
@@ -389,9 +407,15 @@ class MDConductor:
         # Create platform
         self.create_platform(deviceindex) 
         print ('Create simulation...')
-        simulation = Simulation(top.topology, system, integrator, self.pltform, self.properties)
-        simulation.context.setPositions(gro.positions)
+        if self.fileformat == 'GRO':
+            simulation = Simulation(top.topology, system, integrator, self.pltform, self.properties)
+            simulation.context.setPositions(gro.positions)
+        elif self.fileformat == 'PDB':
+            simulation = Simulation(self.modeller.topology, system, integrator, self.pltform, self.properties)
+            print(simulation.topology)
+            simulation.context.setPositions(self.modeller.positions)
         simulation.context.setVelocitiesToTemperature(self.temperature)
+
         return simulation
 
     # EM simulation
@@ -400,7 +424,7 @@ class MDConductor:
 
         print('Minimizing...')
         empdb = sysdir + emname + '.pdb'
-        simulation.minimizeEnergy(maxIterations=5000)
+        simulation.minimizeEnergy(maxIterations=200000)
 
         print('Check Energy...')
         state = simulation.context.getState(getEnergy=True)
@@ -476,7 +500,10 @@ class MDConductor:
         if niter == niter_tot:
             #print('Saving...')
             if remdflag == False:
-                mdgro = sysdir + mdname + '.gro'
+                if self.fileformat == 'GRO':
+                    mdgro = sysdir + mdname + '.gro'
+                elif self.fileformat == 'PDB':
+                    mdpdb = sysdir + mdname + '.pdb'
             elif remdflag == True:
                 index_new = index + '_' + nrep
                 mdgro = sysdir + ensname + index_new + '.gro'
@@ -486,19 +513,31 @@ class MDConductor:
             pos = [pos for pos in positions]
             pbcbox = list(map(lambda x: x/nanometer, pbcbox))
             pos = list(map(lambda x: x/nanometer, pos))
-            #print(pos)
             dt_now = datetime.datetime.now()
             date_ = "-{0:%Y-%m-%d-%H}".format(dt_now)
-            if os.path.exists(mdgro):
-                shutil.copyfile(mdgro, mdgro.split('.')[0] + date_ + '.gro')
-            with open(mdgro, 'wt') as f:
-                f.write('Generated by OpenMM: Date = {0:%Y-%m-%d %H:%M:%S}\n'.format(dt_now))
-                f.write(' '+self.anum+'\n')
-                for i,line in enumerate(self.lines[:-1]):
-                    l = line[:20] + '{0:8.4f}{1:8.4f}{2:8.4f}\n'.format(pos[i][0], pos[i][1], pos[i][2])
-                    f.write(l)
-                f.write('{0:7.4f}\t{0:7.4f}\t{0:7.4f}\n'.format(pbcbox[0], pbcbox[1], pbcbox[2]))
-
+            if self.fileformat == 'GRO':
+                if os.path.exists(mdgro):
+                    shutil.copyfile(mdgro, mdgro.split('.')[0] + date_ + '.gro')
+                with open(mdgro, 'wt') as f:
+                    f.write('Generated by OpenMM: Date = {0:%Y-%m-%d %H:%M:%S}\n'.format(dt_now))
+                    f.write(' '+self.anum+'\n')
+                    for i,line in enumerate(self.lines[:-1]):
+                        l = line[:20] + '{0:8.4f}{1:8.4f}{2:8.4f}\n'.format(pos[i][0], pos[i][1], pos[i][2])
+                        f.write(l)
+                    f.write('{0:7.4f}\t{0:7.4f}\t{0:7.4f}\n'.format(pbcbox[0], pbcbox[1], pbcbox[2]))
+            if self.fileformat == 'PDB':
+                if os.path.exists(mdpdb):
+                    shutil.copyfile(mdpdb, mdpdb.split('.')[0] + date_ + '.pdb')
+                with open(mdpdb, 'wt') as f:
+                    f.write('Generated by OpenMM: Date = {0:%Y-%m-%d %H:%M:%S}\n'.format(dt_now))
+                    f.write(' '+self.anum[0]+'\n')
+                    f.write('CRYST1  {0:7.3f}  {0:7.3f}  {0:7.3f}  90.00  90.00  90.00 P 1           1\n'.format(10.0e0*pbcbox[0]))
+                    f.write(self.anum[1]+'\n')
+                    for i,line in enumerate(self.lines[:-2]):
+                        l = line[:30] + ' {0:7.3f} {1:7.3f} {2:7.3f}'.format(10.0e0*pos[i][0], 10.0e0*pos[i][1], 10.0e0*pos[i][2])
+                        l += line[56:]+'\n'
+                        f.write(l)
+                    f.write('TER\nENDMDL')
 
         if check_eneflag == True:
             state = simulation.context.getState(getEnergy=True)
@@ -519,12 +558,12 @@ class MDConductor:
         return simulation, energy
 
 
-    def convert_pdb2gro(self, pdb):
-        fname = pdb
-        root, ext = os.path.splitext(pdb)
-        outf = root + '.gro'
-        pdbstructure = pmd.load_file(pdb)
-        pdbstructure.save(outf, format='GRO', overwrite=True)
+    def convert_gro2pdb(self, gro_):
+        fname = gro_
+        root, ext = os.path.splitext(gro_)
+        outf = root + '.pdb'
+        grostructure = pmd.load_file(gro_)
+        grostructure.save(outf, format='PDB', overwrite=True)
 
 
     def getIntegratorInfo(self, integrator):
