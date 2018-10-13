@@ -7,7 +7,7 @@ import time
 from tqdm import tqdm
 
 #
-# Read data from Gromacs trrfile and write center-of-mass information to picklefile.
+# Read data from HDF5file and write center-of-mass information to picklefile.
 # This script requires h5py(https://github.com/andersle/pytrr) and tqdm(https://github.com/tqdm/tqdm).
 # Install h5py using "pip insall h5py", "pip install tqdm".
 #
