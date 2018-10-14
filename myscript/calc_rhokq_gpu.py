@@ -24,6 +24,8 @@ args = sys.argv
 fname = args[1]
 T = float(fname.split('_')[1].split('.')[0])
 nens = fname.split('_')[0][-4:]
+dirname = fname.split('/')[0]
+sysname = fname.split('/')[1].split('_')[0]
 nk_min = int(args[2])
 nk_max = int(args[3])
 nq_min = int(args[4])
@@ -39,8 +41,12 @@ tN = len(d['x'])
 R = d['x']
 V = d['v']
 box_size = d['L']
+R = np.around(R,decimals=3)
+V = np.around(V,decimals=3)
+
 R = cp.asarray(R)
 V = cp.asarray(V)
+
 print(tN, box_size)
 print('load picklefile time:', time.time() - t)
 
@@ -68,28 +74,38 @@ t0 = time.time()
 
 K = np.array([1/math.sqrt(3.0e0) * np.array([k0+i*dk, k0+i*dk, k0+i*dk]) for i in range(nk_min, nk_max+1)])
 Q = np.array([1/math.sqrt(3.0e0) * np.array([q0+i*dq, q0+i*dq, q0+i*dq]) for i in range(nq_min, nq_max+1)])
+K = np.around(K, decimals=3)
+Q = np.around(Q, decimals=3)
 K = cp.asarray(K)
 Q = cp.asarray(Q)
 
 t1 = time.time()
-rho = np.array([[[(0+1j) for it in range(tN)] for q in Q] for k in K])
+bnum = 500
+tN_b = int(tN/bnum)
+rho = np.array([[[(0.0e0+0.0e0j) for i in range(tN_b)]  for q in Q] for k in K])
 rho = cp.asarray(rho)
 print('rho:')
 print(rho.shape)
+
 # Calculate rho(k,q,t)
-for ik,k in enumerate(K):
-    for iq,q in enumerate(Q):
-        print('(ik,iq)=({0:d},{1:d})'.format(ik,iq))
-        theta = cp.dot(R,k) + cp.dot(V,q)
-        rho[ik][iq] = cp.sum(cp.exp(theta*-1j), axis=1)
+for ib,it in enumerate(range(tN_b)):
+    for ik,k in enumerate(K):
+        for iq,q in enumerate(Q):
+            print('(it,ik,iq)=({0:d},{1:d},{2:d})'.format(it,ik,iq))
+            r = R[ib*bnum:(ib+1)*bnum]
+            v = V[ib*bnum:(ib+1)*bnum]
+            theta = cp.dot(r,k) + cp.dot(v,q)
+            dummy01 = cp.exp(theta*-1.0e0j)
+            rho[ik][iq][ib] = cp.sum(dummy01)/float(bnum)
+            print('rho[ik][iq]:')
+            print(rho[ik][iq][ib])
 print("Calculate rho(k,q,t) time:", time.time()-t1)
 
 # Calculate <rho(k,q)>
-rho_t = np.array([[(0+1j) for q in Q] for k in K])
-rho_t = cp.asarray(rho_t)
+rho_t = np.array([[(0.0e0+1.0e0j) for q in Q] for k in K])
 for ik,k in enumerate(K):
     for iq,q in enumerate(Q):
-        rho_t[ik][iq] = cp.sum(rho[ik][iq], axis=0) / float(tN)
+        rho_t[ik][iq] = np.sum(rho[ik][iq], axis=0) / float(tN_b)
 
 rho_t = cp.asnumpy(rho_t)
 t3 = time.time()
