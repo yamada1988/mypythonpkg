@@ -38,14 +38,11 @@ with open(fname, mode='rb') as f:
     d = pickle.load(f)
 
 tN = len(d['x'])
-R = d['x']
-V = d['v']
+talpha = 0.010e0
+tmax = int(tN*talpha)
+tN = tmax
 box_size = d['L']
-R = np.around(R,decimals=3)
-V = np.around(V,decimals=3)
-
-R = cp.asarray(R)
-V = cp.asarray(V)
+R = d['x']
 
 print(tN, box_size)
 print('load picklefile time:', time.time() - t)
@@ -60,6 +57,9 @@ mH =  1.008e-27 #(kg)
 Minv = 1/(mO + mH + mH) #(kg^-1)
 kB = 1.3801e-23 #(J K^-1)
 
+print('R:')
+print(len(R))
+del R
 # Wave number Parameters
 k0 = 2.0e0*pi / L # (nm^-1)
 dk = 1.0e0*2.0e0*pi / L # (nm^-1)
@@ -74,49 +74,73 @@ t0 = time.time()
 
 K = np.array([1/math.sqrt(3.0e0) * np.array([k0+i*dk, k0+i*dk, k0+i*dk]) for i in range(nk_min, nk_max+1)])
 Q = np.array([1/math.sqrt(3.0e0) * np.array([q0+i*dq, q0+i*dq, q0+i*dq]) for i in range(nq_min, nq_max+1)])
-K = np.around(K, decimals=3)
-Q = np.around(Q, decimals=3)
+K = np.around(K, decimals=4)
+Q = np.around(Q, decimals=4)
 K = cp.asarray(K)
 Q = cp.asarray(Q)
 
 t1 = time.time()
-bnum = 500
+bnum = 200
 tN_b = int(tN/bnum)
-rho = np.array([[[(0.0e0+0.0e0j) for i in range(tN_b)]  for q in Q] for k in K])
+rho = np.array([[(0.0e0+0.0e0j) for q in Q] for k in K])
+theta = np.array([[np.zeros((tN_b, N)) for q in Q] for k in K])
 rho = cp.asarray(rho)
+theta = cp.asarray(theta)
 print('rho:')
 print(rho.shape)
 
 # Calculate rho(k,q,t)
-for ib,it in enumerate(range(tN_b)):
+R = d['x'][:tN]
+R = cp.asarray(R)
+
+print(R.shape)
+print('theta(r,k)')
+for it in range(tN_b):
+    r = R[it*bnum:(it+1)*bnum]
     for ik,k in enumerate(K):
         for iq,q in enumerate(Q):
-            print('(it,ik,iq)=({0:d},{1:d},{2:d})'.format(it,ik,iq))
-            r = R[ib*bnum:(ib+1)*bnum]
-            v = V[ib*bnum:(ib+1)*bnum]
-            theta = cp.dot(r,k) + cp.dot(v,q)
-            dummy01 = cp.exp(theta*-1.0e0j)
-            rho[ik][iq][ib] = cp.sum(dummy01)/float(bnum)
-            print('rho[ik][iq]:')
-            print(rho[ik][iq][ib])
-print("Calculate rho(k,q,t) time:", time.time()-t1)
+            a = cp.dot(r, k)
+            theta[ik][iq][it] = a[it]
+del R
+del a
 
-# Calculate <rho(k,q)>
-rho_t = np.array([[(0.0e0+1.0e0j) for q in Q] for k in K])
+V = d['v'][:][:tN]
+V = cp.asarray(V)
+
+print('theta(v,q)')
+for ib,it in enumerate(range(tN_b)):
+    v = V[ib*bnum:(ib+1)*bnum]
+    for ik,k in enumerate(K):
+        for iq,q in enumerate(Q):
+            a = cp.dot(v, q)
+            theta[ik][iq][it] += a[it]
+del V
+
+
 for ik,k in enumerate(K):
     for iq,q in enumerate(Q):
-        rho_t[ik][iq] = np.sum(rho[ik][iq], axis=0) / float(tN_b)
+        print('(ik,iq)=({0:d},{1:d})'.format(ik,iq))
+        a = cp.sum(cp.exp(-1.0e0j*theta),axis=3)
+        b = cp.sum(a, axis=2) /  tN_b
+        print('b:', b.shape)
+        print(b[ik][iq])
+        rho[ik][iq] = b[ik][iq]
+        print('<rho(k,q,t)>:')
+        print(rho[ik][iq])
+del a
+del b
 
-rho_t = cp.asnumpy(rho_t)
+print("Calculate rho(k,q,t) time:", time.time()-t1)
+rho = cp.asnumpy(rho)
 t3 = time.time()
 for ik,nk in enumerate(range(nk_min, nk_max+1)):
     ofname = 'DAT/rho'+nens+'nk{0:02d}_{1:d}.dat'.format(nk,int(T))
     with open(ofname, 'wt') as f:
+        f.write('# rho[k][0] = {0}, {1}\n'.format(rho[ik][0].real, rho[ik][0].imag))
         f.write('# k=[{0[0]},{0[1]},{0[2]}]\n# rho(k,q,t)\n'.format(K[ik]))
     for iq,q in enumerate(Q):
-        print(q)
-        a = rho_t[ik][iq].real/rho_t[ik][0].real
-        b = rho_t[ik][iq].imag/rho_t[ik][0].imag
+        a = rho[ik][iq].real/rho[ik][0].real
+        b = rho[ik][iq].imag/rho[ik][0].imag
         with open(ofname, 'a+') as f:
             f.write('{0}\t{1}\t{2}\n'.format(q[0], a, b))
 
