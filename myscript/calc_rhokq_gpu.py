@@ -17,7 +17,7 @@ import time
 #
 
 # Sample:
-# python script/calc_rhokq.py MD/sample0001_01.pickle 1 5 0 5
+# python script/calc_rhokq.py MD/sample0001_01.pickle 1 0 5
 #
 
 args = sys.argv
