@@ -20,18 +20,18 @@ import time
 # python script/calc_rhokq.py MD/sample0001_01.pickle 1 5 0 5
 #
 
-
 def func(r,v):
     r_box = int(math.ceil(r/dr))
     v_box = int(math.ceil(v/dv))
-    if k == 0.0e0:
+    if k == 0.0e0 and not q == 0.0e0:
         dummy = P[r_box][v_box]*(r**2*2.0e0)*(v*np.sin(q*v)/(q))*(2.0e0*math.pi)**2
-    elif q == 0.0e0:
+    elif not k == 0.0e0 and q == 0.0e0:
         dummy = P[r_box][v_box]*(r*np.sin(k*r)/(k))*(v**2*2.0e0)*(2.0e0*math.pi)**2
+    elif k == 0.0e0 and q == 0.0e0:
+        dummy = P[r_box][v_box]*(r**2*2.0e0)*(v**2*2.0e0)*(2.0e0*math.pi)**2
     else:
         dummy = P[r_box][v_box]*(r*np.sin(k*r)/(k))*(v*np.sin(q*v)/(q))*(2.0e0*math.pi)**2
     return dummy 
-   
 
 args = sys.argv
 fname = args[1]
@@ -51,7 +51,7 @@ with open(fname, mode='rb') as f:
     d = pickle.load(f)
 
 tN = len(d['x'])
-talpha = 0.040e0
+talpha = 0.40e0
 tmax = int(tN*talpha)
 tN = tmax
 box_size = d['L']
@@ -75,7 +75,7 @@ dk = 1.0e0*2.0e0*pi / L # (nm^-1)
 kN = nk_max - nk_min + 1
 K = [k0+ik*dk for ik in range(kN)]
 vth = math.sqrt(3.0e0*kB*T*Minv) /1000.0e0 # (nm/fs)^-1 = (km/s)^-1
-alpha = 0.0250
+alpha = 0.0050
 dq = alpha * 2.0e0*pi / vth
 q0 = 0.0e0
 qN = nq_max - nq_min + 1
@@ -84,11 +84,11 @@ Q = [q0 + iq*dq for iq in range(qN)]
 # Space-Velocity Parameters
 r_min = 0.0e0
 r_max = float(L/2.0e0)
-rN = 100
+rN = 200
 dr    = (r_max-r_min)/ float(rN)
 r_ = np.array([r_min + ir*dr for ir in range(rN+1)])
 v_min = 0.0e0
-v_max = 15.0e0
+v_max = 20.0e0
 vN = 100
 dv    = (v_max-v_min)/ float(vN)
 v_ = np.array([v_min + iv*dv for iv in range(vN+1)])
@@ -100,27 +100,31 @@ print('tN_b:',tN_b)
 
 print(r_max)
 # Calculate rho(k,q,t)
-R = d['x'][:tN]
-V = d['v'][:tN]
-P = np.zeros((rN+1, vN+1))
+R = d['x']
+V = d['v']
+P = [[0.0e0 for iv in range(vN+1)] for j in range(rN+1)]
+f1 = 'check01'
+f2 = 'check02'
 for it in range(tN_b):
     print('it:', it)
     rvec = np.array(R[it])
     vvec = np.array(V[it])
-    rij = distance.pdist(rvec, 'euclidean')
+    # Cannot use distance.pdist due to PBC
+    xr = rvec[np.newaxis, :] - rvec[:, np.newaxis]
+    xr -= L * np.trunc(xr/L) # unset PBC
+    rij = np.sqrt(np.sum(xr**2, axis=2))
+    r = rij[np.triu_indices(N, k = 1)]
     vij = distance.pdist(vvec, 'euclidean')
-    rij = rij - r_max*np.floor(rij/r_max) # Periodic Boundury Condition
-    r = rij.flatten()
     v = vij.flatten()
 
     for ir,r_dummy in enumerate(r):
         v_dummy = v[ir]
         r_box = int(math.ceil(r_dummy/dr))
         v_box = int(math.ceil(v_dummy/dv))
-        if r_box == 0:
-            print(ir, r_dummy)
-        P[r_box][v_box] += 1
+        if r_box <= rN:
+            P[r_box][v_box] += 1
 print('sanity check:')
+P = np.array(P)
 count_total = np.sum(P)
 print('count_total:{0:d} totalN:{1:d}'.format(int(count_total), int(totalN*tN)))
 # normalization
@@ -142,8 +146,7 @@ for ik,k in enumerate(K):
         S[ik][iq], _ = integrate.nquad(func, [[0.0, r_max], [0.0, v_max]])  
         print(S[ik][iq])
 
-for ik,k in enumerate(K):
-    ofname = 'DAT/S'+nens+'nk{0:02d}_{1:d}.dat'.format(ik,int(T))
+    ofname = 'DAT/Skq'+nens+'nk{0:02d}_{1:d}.dat'.format(ik,int(T))
     with open(ofname, 'wt') as f:
         f.write('# S[k][0] = {0}\n'.format(S[ik][0]))
         f.write('# k={0:8.5f}\n# S(k,q)\n'.format(k)) 
