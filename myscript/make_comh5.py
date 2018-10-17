@@ -7,7 +7,7 @@ import time
 from tqdm import tqdm
 
 #
-# Read data from HDF5file and write center-of-mass information to picklefile.
+# Read data from Gromacs trrfile and write center-of-mass information to picklefile.
 # This script requires h5py(https://github.com/andersle/pytrr) and tqdm(https://github.com/tqdm/tqdm).
 # Install h5py using "pip insall h5py", "pip install tqdm".
 #
@@ -15,16 +15,6 @@ from tqdm import tqdm
 def make_vec(tnum):
     vec = ['' for i in range(tN)]
     return vec
-
-def calc_RV(list_data, i, it, m):
-    # Calculate single H2O molecule's center of mass (R)
-    #R[i][it] = (mO*list_data['x'][iO]+mH*list_data['x'][iH1]+mH*list_data['x'][iH2])/M
-    r = np.dot(list_data['x'][3*i:3*i+3],m)/M
-
-    # Calculate single H2O molecule's velocity (V)
-    #V[i][it] = (mO*list_data['v'][iO]+mH*list_data['v'][iH1]+mH*list_data['v'][iH2])/M
-    v = np.dot(list_data['v'][3*i:3*i+3],m)/M
-    return r, v    
 
 args = sys.argv
 fname = args[1]
@@ -36,7 +26,7 @@ N = 3000
 mO = 16.00 * 1.661e-27 #(kg)
 mH =  1.08 * 1.661e-27 #(kg)
 Minv = 1/(mO + mH + mH) #(u)
-m = np.array([mO, mH, mH])
+m = np.array([mO, mH, mH])*Minv
 
 tN = 0
 t0 = time.time()
@@ -51,20 +41,21 @@ print('Read all frame time:', time.time() - t0)
 R = make_vec(tN)
 V = make_vec(tN) 
 
+tN = int(tN/2)
 t = time.time()
 print("dump trrfile to python picklefile (COM information).")
+
+cominfo = {'x':[[] for it in range(tN)], 'v':[[]for it in range(tN)], 'L': box_size}
+    
 for it in tqdm(range(tN)):
     data_x = infh['coordinates'][it]    
     data_v = infh['velocities'][it]
-    R[it] = [np.dot(data_x[3*i:3*i+3],m)*Minv for i in range(N)]
-    V[it] = [np.dot(data_v[3*i:3*i+3],m)*Minv for i in range(N)]
-print('Read trrfile time:', time.time() - t)
+    R = np.array([np.dot(data_x[4*i:4*i+3].T,m) for i in range(N)])
+    V = np.array([np.dot(data_v[4*i:4*i+3].T,m) for i in range(N)])
 
-t = time.time()
-R = np.array(R)
-V = np.array(V)
-cominfo = {'x':R, 'v':V, 'L': box_size}
+    cominfo['x'][it] = np.around(R, decimals=4) 
+    cominfo['v'][it] = np.around(V, decimals=4)
 ofname = sysname + '_{0:03d}'.format(T) + '.pickle'
 with open(ofname, mode='wb') as f:
-    pickle.dump(cominfo, f, protocol=4)
+    pickle.dump(cominfo, f)
 print('dump picklefile time:', time.time() - t)
