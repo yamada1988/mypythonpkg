@@ -136,8 +136,6 @@ dVv = 4.0e0*pi*(v_+dv/2.0e0)**2
 for i in range(rN):
     for j in range(vN):
         P[i][j] /= (dVr[i]*dVv[j])
-ZP = np.sum(P)
-P /= ZP
 
 # Integration
 S = np.zeros((kN, qN))
