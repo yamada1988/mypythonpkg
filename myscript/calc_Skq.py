@@ -2,33 +2,26 @@ import sys
 import math
 import numpy as np
 import pickle
-import statsmodels.api as sm
 from scipy.spatial import distance
 from scipy import integrate
 import time
 
 
 #
-# Calculate rho(k,q,t), <rho(k,q)>, and <drho(k,q,t)drho(-k,-q,0)> from compickle.
-# This script requires cupy(https://github.com/cupy/cupy) 
-# and statsmodels(https://github.com/statsmodels/statsmodels).
-# Install cupy using "conda install cupy".
-# Install statsmodels using "using install statsmodels".
-#
-
+# This script calculate S(k,q) from compickle.
 # Sample:
-# python script/calc_rhokq.py MD/sample0001_01.pickle 1 5 0 5
+# python script/calc_Skq.py MD/sample0001_01.pickle 1 5 0 5
 #
 
 def func(r,v):
     r_box = int(math.ceil(r/dr))
     v_box = int(math.ceil(v/dv))
     if k == 0.0e0 and not q == 0.0e0:
-        dummy = P[r_box][v_box]*(r**2*2.0e0)*(v*np.sin(q*v)/(q))*(2.0e0*math.pi)**2
+        dummy = P[r_box][v_box]*(2.0e0*r**2)*(v*np.sin(q*v)/(q))*(2.0e0*math.pi)**2
     elif not k == 0.0e0 and q == 0.0e0:
-        dummy = P[r_box][v_box]*(r*np.sin(k*r)/(k))*(v**2*2.0e0)*(2.0e0*math.pi)**2
+        dummy = P[r_box][v_box]*(r*np.sin(k*r)/(k))*(2.0e0*v**2)*(2.0e0*math.pi)**2
     elif k == 0.0e0 and q == 0.0e0:
-        dummy = P[r_box][v_box]*(r**2*2.0e0)*(v**2*2.0e0)*(2.0e0*math.pi)**2
+        dummy = P[r_box][v_box]*(2.0e0*r**2)*(2.0e0*v**2)*(2.0e0*math.pi)**2
     else:
         dummy = P[r_box][v_box]*(r*np.sin(k*r)/(k))*(v*np.sin(q*v)/(q))*(2.0e0*math.pi)**2
     return dummy 
@@ -46,9 +39,11 @@ nq_max = int(args[5])
 
 pi = math.pi
 
+print('load picklefile:')
 t = time.time()
 with open(fname, mode='rb') as f:
     d = pickle.load(f)
+print('time:', time.time() - t)
 
 tN = len(d['x'])
 talpha = 0.40e0
@@ -56,9 +51,7 @@ tmax = int(tN*talpha)
 tN = tmax
 box_size = d['L']
 R = d['x']
-
 print(tN, box_size)
-print('load picklefile time:', time.time() - t)
 
 # Phisical Parameters
 N =  len(R[0])
@@ -74,7 +67,7 @@ k0 = 2.0e0*pi / L # (nm^-1)
 dk = 1.0e0*2.0e0*pi / L # (nm^-1)
 kN = nk_max - nk_min + 1
 K = [k0+ik*dk for ik in range(kN)]
-vth = math.sqrt(3.0e0*kB*T*Minv) /1000.0e0 # (nm/fs)^-1 = (km/s)^-1
+vth = math.sqrt(3.0e0*kB*T*Minv) / 1000.0e0 # (nm/ps)^-1 = (m/s)^-1
 alpha = 0.0050
 dq = alpha * 2.0e0*pi / vth
 q0 = 0.0e0
@@ -84,12 +77,12 @@ Q = [q0 + iq*dq for iq in range(qN)]
 # Space-Velocity Parameters
 r_min = 0.0e0
 r_max = float(L/2.0e0)
-rN = 200
-dr    = (r_max-r_min)/ float(rN)
+rN = 100
+dr = (r_max-r_min)/ float(rN)
 r_ = np.array([r_min + ir*dr for ir in range(rN+1)])
 v_min = 0.0e0
-v_max = 20.0e0
-vN = 100
+v_max = 12.0e0
+vN = 50
 dv    = (v_max-v_min)/ float(vN)
 v_ = np.array([v_min + iv*dv for iv in range(vN+1)])
 
@@ -103,8 +96,6 @@ print(r_max)
 R = d['x']
 V = d['v']
 P = [[0.0e0 for iv in range(vN+1)] for j in range(rN+1)]
-f1 = 'check01'
-f2 = 'check02'
 for it in range(tN_b):
     print('it:', it)
     rvec = np.array(R[it])
@@ -131,8 +122,8 @@ print('count_total:{0:d} totalN:{1:d}'.format(int(count_total), int(totalN*tN)))
 P /= float(count_total)
 dVr = np.zeros(rN)
 dVv = np.zeros(vN)
-dVr = 4.0e0*pi*(r_+dr/2.0e0)**2
-dVv = 4.0e0*pi*(v_+dv/2.0e0)**2
+dVr = 4.0e0*pi*(r_+dr/2.0e0)**2*dr
+dVv = 4.0e0*pi*(v_+dv/2.0e0)**2*dv
 for i in range(rN):
     for j in range(vN):
         P[i][j] /= (dVr[i]*dVv[j])
