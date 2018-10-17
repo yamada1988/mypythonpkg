@@ -9,13 +9,15 @@ import time
 
 
 #
-# Calculate S(k,q) from compickle.
-# This script requires statsmodels(https://github.com/statsmodels/statsmodels).
+# Calculate rho(k,q,t), <rho(k,q)>, and <drho(k,q,t)drho(-k,-q,0)> from compickle.
+# This script requires cupy(https://github.com/cupy/cupy) 
+# and statsmodels(https://github.com/statsmodels/statsmodels).
+# Install cupy using "conda install cupy".
 # Install statsmodels using "using install statsmodels".
 #
 
 # Sample:
-# python script/calc_Skq.py MD/sample0001_01.pickle 1 5 0 5
+# python script/calc_rhokq.py MD/sample0001_01.pickle 1 5 0 5
 #
 
 
@@ -140,17 +142,12 @@ for ik,k in enumerate(K):
         S[ik][iq], _ = integrate.nquad(func, [[0.0, r_max], [0.0, v_max]])  
         print(S[ik][iq])
 
-sys.exit()
-print("Calculate S(k,q) time:", time.time()-t1)
-ofname = 'DAT/rho'+nens+'nk{0:02d}_{1:d}.dat'.format(nk,int(T))
-with open(ofname, 'wt') as f:
-    f.write('# rho[k][0] = {0}, {1}\n'.format(rho[0].real, rho[0].imag))
-    f.write('# k=[{0[0]},{0[1]},{0[2]}]\n# rho(k,q,t)\n'.format(K[0]))
-for iq,q in enumerate(Q):
-    a = rho[iq].real/rho[0].real
-    b = rho[iq].imag/rho[0].imag
-    with open(ofname, 'a+') as f:
-        f.write('{0}\t{1}\t{2}\n'.format(q[0], a, b))
-
-print("write file time:", time.time()-t3)
-print("total time:", time.time()-t0)
+for ik,k in enumerate(K):
+    ofname = 'DAT/S'+nens+'nk{0:02d}_{1:d}.dat'.format(ik,int(T))
+    with open(ofname, 'wt') as f:
+        f.write('# S[k][0] = {0}\n'.format(S[ik][0]))
+        f.write('# k={0:8.5f}\n# S(k,q)\n'.format(k)) 
+    for iq,q in enumerate(Q):
+        a = S[ik][iq]/S[ik][0]
+        with open(ofname, 'a+') as f:
+            f.write('{0}\t{1}\n'.format(q, a))
