@@ -16,16 +16,18 @@ import time
 def func(r,v):
     r_box = int(math.ceil(r/dr))
     v_box = int(math.ceil(v/dv))
-    if k == 0.0e0:
-        if not q == 0.0e0:
-            dummy = P[r_box][v_box]*(2.0e0*r**2)*(v*np.sin(q*v)/(q))*(2.0e0*math.pi)**2
-        elif q == 0.0e0:
-            dummy = P[r_box][v_box]*(2.0e0*r**2)*(2.0e0*v**2)*(2.0e0*math.pi)**2
+    if k == 0.0e0 and not q == 0.0e0:
+        dummy = P[r_box][v_box]*(2.0e0*r**2)*(v*np.sin(q*v)/(q))*(2.0e0*math.pi)**2
     elif not k == 0.0e0 and q == 0.0e0:
         dummy = P[r_box][v_box]*(r*np.sin(k*r)/(k))*(2.0e0*v**2)*(2.0e0*math.pi)**2
+    elif k == 0.0e0 and q == 0.0e0:
+        dummy = P[r_box][v_box]*(2.0e0*r**2)*(2.0e0*v**2)*(2.0e0*math.pi)**2
     else:
         dummy = P[r_box][v_box]*(r*np.sin(k*r)/(k))*(v*np.sin(q*v)/(q))*(2.0e0*math.pi)**2
     return dummy 
+
+def phi_u(v, betaM):
+    return v**2*math.sqrt(betaM/math.pi)**3*np.exp(-betaM*v**2)
 
 args = sys.argv
 fname = args[1]
@@ -47,7 +49,7 @@ with open(fname, mode='rb') as f:
 print('time:', time.time() - t)
 
 tN = len(d['x'])
-talpha = 1.0e0
+talpha = 0.00010e0
 tmax = int(tN*talpha)
 tN = tmax
 box_size = d['L']
@@ -58,12 +60,13 @@ print(tN, box_size)
 N =  len(R[0])
 dt = 1.0e0 #(ps)
 L = box_size #(nm) 
-rho = float(N)/(L**3) # (nm^-3)
+rho = float(N/(L**3))
 mO = 16.00e-27 #(kg)
 mH =  1.008e-27 #(kg)
 Minv = 1/(mO + mH + mH) #(kg^-1)
 kB = 1.3801e-23 #(J K^-1)
-betaM = 1/(kB*T*Minv) / 1000.0e0 # (nm/ps)^-1
+betaM = 1/(kB*T*Minv)*1.0E+06  # (nm/ps)^-2
+print(betaM)
 
 # Wave number Parameters
 k0 = 2.0e0*pi / L # (nm^-1)
@@ -82,12 +85,12 @@ r_min = 0.0e0
 r_max = float(L/2.0e0)
 rN = 100
 dr = (r_max-r_min)/ float(rN)
-r_ = np.array([r_min + ir*dr for ir in range(rN+1)])
+r_ = np.array([r_min + ir*dr for ir in range(rN)])
 v_min = 0.0e0
-v_max = 2.0e0
+v_max = 10.0e0
 vN = 50
-dv    = (v_max-v_min)/ float(vN)
-v_ = np.array([v_min + iv*dv for iv in range(vN+1)])
+dv = (v_max-v_min)/ float(vN)
+v_ = np.array([v_min + iv*dv for iv in range(vN)])
 
 bnum = 1
 tN_b = int(tN/bnum)
@@ -99,7 +102,9 @@ rm0 = 10.0e0
 # Calculate rho(k,q,t)
 R = d['x']
 V = d['v']
-P = [[0.0e0 for iv in range(vN+1)] for j in range(rN+1)]
+P = [0.0e0 for iv in range(tN)]
+G = [[0.0e0 for iv in range(vN)] for j in range(rN)]
+g = [0.0e0 for ir in range(tN)]
 for it in range(tN_b):
     print('it:', it)
     rvec = np.array(R[it])
@@ -114,32 +119,34 @@ for it in range(tN_b):
         rm0 = rm
     vij = distance.pdist(vvec, 'euclidean')
     v = vij.flatten()
-    
-    for ir,r_dummy in enumerate(r):
-        v_dummy = v[ir]
-        r_box = int(math.ceil(r_dummy/dr))
-        v_box = int(math.ceil(v_dummy/dv))
-        if r_box <= rN and v_box <= vN:
-            P[r_box][v_box] += 1
+
+    P[it], _, _ = np.histogram2d(r, v, bins=(200, 50), range=((0.0, r_max), (0.0, v_max)))
 print('sanity check:')
 P = np.array(P)
-count_total = np.sum(P)
-print('count_total:{0:d} totalN:{1:d}'.format(int(count_total), int(totalN*tN)))
 # normalization
+P = np.sum(P, axis=0)
 dVr = np.zeros(rN)
 dVv = np.zeros(vN)
 dVr = 4.0e0*pi*(r_+dr/2.0e0)**2*dr
 dVv = 4.0e0*pi*(v_+dv/2.0e0)**2*dv
-for i in range(rN):
-    for j in range(vN):
-        P[i][j] /= (rho*float(N)*tN_b*dVr[i]*dVv[j])
-
-with open('Prv.dat', 'wt') as f:
+for ir in range(rN):
     for iv in range(vN):
+        v_d = v_[iv] + dv/2.0e0
+        G[ir][iv] = P[ir][iv]/(rho*float(N)*tN_b*dVr[ir]*dVv[iv])
+with open('Prv.dat', 'wt') as f:
+     for iv in range(vN):
         for ir in range(rN):
-            f.write('{0:6.4f}\t{1:6.4f}\t{2:8.6f}\n'.format(v_[iv], r_[ir], P[ir][iv]))
+            f.write('{0:6.4f}\t{1:6.4f}\t{2:8.6f}\n'.format(v_[iv], r_[ir], G[ir][iv]))
         f.write('\n')
 
+with open('Gr.dat', 'wt') as f:
+    g = np.sum(P*dv, axis=1)
+    print(rho)
+    for ir in range(rN):
+        g[ir] /= (rho*float(N-1)*tN_b*dVr[ir]/2.0e0)
+        f.write('{0:6.4f}\t{1:8.6f}\n'.format(r_[ir], g[ir]))
+
+sys.exit()
 # Integration
 S = np.zeros((kN, qN))
 for ik,k in enumerate(K):
