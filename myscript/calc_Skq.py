@@ -134,7 +134,7 @@ dVr = 4.0e0*pi*(r_ +dr/2.0e0)**2*dr
 dVv = 4.0e0*pi*(v_ +dv/2.0e0)**2*dv
 for ir in range(rN):
     for iv in range(vN):
-        G[ir][iv] = P[ir][iv]/(rho*float(N)*tN_b*dVr[ir]*dVv[iv])
+        G[ir][iv] = P[ir][iv]/(rho*float(N)*tN_b*dVr[ir]*dVv[iv]*2.0e0)
 with open(ofname_+'rv.dat', 'wt') as f:
      for iv in range(vN):
         for ir in range(rN):
