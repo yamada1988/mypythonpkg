@@ -49,7 +49,7 @@ with open(fname, mode='rb') as f:
 print('time:', time.time() - t)
 
 tN = len(d['x'])
-talpha = 0.00020e0
+talpha = 1.0e0
 tmax = int(tN*talpha)
 tN = tmax
 box_size = d['L']
@@ -83,12 +83,12 @@ Q = [q0 + iq*dq for iq in range(qN)]
 # Space-Velocity Parameters
 r_min = 0.0e0
 r_max = float(L/2.0e0)
-rN = 100
+rN = 200
 dr = (r_max-r_min)/ float(rN)
 r_ = np.array([r_min + ir*dr for ir in range(rN)])
 v_min = 0.0e0
-v_max = 5.0e0
-vN = 50
+v_max = 4.0e0
+vN = 500
 dv = (v_max-v_min)/ float(vN)
 v_ = np.array([v_min + iv*dv for iv in range(vN)])
 
@@ -120,12 +120,11 @@ for it in range(tN_b):
     vr = vvec[np.newaxis, :] - vvec[:, np.newaxis]
     vij = np.sqrt(np.sum(vr**2, axis=2))
     v = vij[np.triu_indices(N, k = 1)]
-    print(r,v)
 
     P[it], rax, vax = np.histogram2d(r, v, bins=(rN, vN), range=((0.0, r_max), (0.0, v_max)))
 print('sanity check:')
 P = np.array(P)
-print(P)
+ofname_ = 'DAT/P{1:d}_'.format(ik,int(T))
 # normalization
 P = np.sum(P, axis=0)
 print(P.shape)
@@ -136,20 +135,25 @@ dVv = 4.0e0*pi*(v_ +dv/2.0e0)**2*dv
 for ir in range(rN):
     for iv in range(vN):
         G[ir][iv] = P[ir][iv]/(rho*float(N)*tN_b*dVr[ir]*dVv[iv])
-with open('Prv.dat', 'wt') as f:
+with open(ofname_+'rv.dat', 'wt') as f:
      for iv in range(vN):
         for ir in range(rN):
             f.write('{0:6.4f}\t{1:6.4f}\t{2:8.6f}\n'.format(v_[iv], r_[ir], G[ir][iv]))
         f.write('\n')
 
-with open('Gr.dat', 'wt') as f:
-    g = np.sum(P*dv, axis=1)
+with open(ofname_+'r.dat', 'wt') as f:
+    g = np.sum(P, axis=1)
     print(rho)
     for ir in range(rN):
-        g[ir] /= (rho*float(N-1)*tN_b*dVr[ir]/2.0e0)
+        g[ir] /= ((N-1)*tN_b*dVr[ir])
         f.write('{0:6.4f}\t{1:8.6f}\n'.format(r_[ir], g[ir]))
 
-sys.exit()
+with open(ofname_+'v.dat', 'wt') as f:
+    g = np.sum(P, axis=0)
+    for iv in range(vN):
+        g[iv] /= (tN_b*dVv[iv]*N*N-1)
+        f.write('{0:6.4f}\t{1:8.6f}\n'.format(v_[iv], g[iv]))
+
 # Integration
 S = np.zeros((kN, qN))
 for ik,k in enumerate(K):
