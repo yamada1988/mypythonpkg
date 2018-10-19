@@ -14,8 +14,8 @@ import time
 #
 
 def func(r,v):
-    r_box = int(math.ceil(r/dr))
-    v_box = int(math.ceil(v/dv))
+    r_box = int(math.trunc(r/dr))
+    v_box = int(math.trunc(v/dv))
     if k == 0.0e0 and not q == 0.0e0:
         dummy = P[r_box][v_box]*(2.0e0*r**2)*(v*np.sin(q*v)/(q))*(2.0e0*math.pi)**2
     elif not k == 0.0e0 and q == 0.0e0:
@@ -49,7 +49,7 @@ with open(fname, mode='rb') as f:
 print('time:', time.time() - t)
 
 tN = len(d['x'])
-talpha = 1.0e0
+talpha = 0.001e0
 tmax = int(tN*talpha)
 tN = tmax
 box_size = d['L']
@@ -102,9 +102,9 @@ rm0 = 10.0e0
 # Calculate rho(k,q,t)
 R = d['x']
 V = d['v']
-P = [0.0e0 for iv in range(tN)]
 G = [[0.0e0 for iv in range(vN)] for j in range(rN)]
-g = [0.0e0 for ir in range(tN)]
+P = np.zeros((rN, vN))
+g = [0.0e0 for ir in range(rN)]
 for it in range(tN_b):
     print('it:', it)
     rvec = np.array(R[it])
@@ -121,13 +121,13 @@ for it in range(tN_b):
     vij = np.sqrt(np.sum(vr**2, axis=2))
     v = vij[np.triu_indices(N, k = 1)]
 
-    P[it], rax, vax = np.histogram2d(r, v, bins=(rN, vN), range=((0.0, r_max), (0.0, v_max)))
+    p, rax, vax = np.histogram2d(r, v, bins=(rN, vN), range=((0.0, r_max), (0.0, v_max)))
+    P += p
+
 print('sanity check:')
-P = np.array(P)
-ofname_ = 'DAT/P{1:d}_'.format(ik,int(T))
+ofname_ = 'DAT/P{0:d}_'.format(int(T))
 # normalization
-P = np.sum(P, axis=0)
-print(P.shape)
+print(np.sum(P), P.shape)
 dVr = np.zeros(rN)
 dVv = np.zeros(vN)
 dVr = 4.0e0*pi*(r_ +dr/2.0e0)**2*dr
@@ -145,7 +145,7 @@ with open(ofname_+'r.dat', 'wt') as f:
     g = np.sum(P, axis=1)
     print(rho)
     for ir in range(rN):
-        g[ir] /= ((N-1)*tN_b*dVr[ir])
+        g[ir] /= ((N-1)*tN_b*dVr[ir]*2.0e0)
         f.write('{0:6.4f}\t{1:8.6f}\n'.format(r_[ir], g[ir]))
 
 with open(ofname_+'v.dat', 'wt') as f:
