@@ -49,7 +49,7 @@ with open(fname, mode='rb') as f:
 print('time:', time.time() - t)
 
 tN = len(d['x'])
-talpha = 0.00010e0
+talpha = 0.00020e0
 tmax = int(tN*talpha)
 tN = tmax
 box_size = d['L']
@@ -87,7 +87,7 @@ rN = 100
 dr = (r_max-r_min)/ float(rN)
 r_ = np.array([r_min + ir*dr for ir in range(rN)])
 v_min = 0.0e0
-v_max = 10.0e0
+v_max = 5.0e0
 vN = 50
 dv = (v_max-v_min)/ float(vN)
 v_ = np.array([v_min + iv*dv for iv in range(vN)])
@@ -111,27 +111,30 @@ for it in range(tN_b):
     vvec = np.array(V[it])
     # Cannot use distance.pdist due to PBC
     xr = rvec[np.newaxis, :] - rvec[:, np.newaxis]
-    xr -= L * np.trunc(xr/L) # unset PBC
+    xr -= L * np.ceil(xr/L) # unset PBC
     rij = np.sqrt(np.sum(xr**2, axis=2))
     r = rij[np.triu_indices(N, k = 1)]
     rm = np.amin(r)
     if rm < rm0:
         rm0 = rm
-    vij = distance.pdist(vvec, 'euclidean')
-    v = vij.flatten()
+    vr = vvec[np.newaxis, :] - vvec[:, np.newaxis]
+    vij = np.sqrt(np.sum(vr**2, axis=2))
+    v = vij[np.triu_indices(N, k = 1)]
+    print(r,v)
 
-    P[it], _, _ = np.histogram2d(r, v, bins=(200, 50), range=((0.0, r_max), (0.0, v_max)))
+    P[it], rax, vax = np.histogram2d(r, v, bins=(rN, vN), range=((0.0, r_max), (0.0, v_max)))
 print('sanity check:')
 P = np.array(P)
+print(P)
 # normalization
 P = np.sum(P, axis=0)
+print(P.shape)
 dVr = np.zeros(rN)
 dVv = np.zeros(vN)
-dVr = 4.0e0*pi*(r_+dr/2.0e0)**2*dr
-dVv = 4.0e0*pi*(v_+dv/2.0e0)**2*dv
+dVr = 4.0e0*pi*(r_ +dr/2.0e0)**2*dr
+dVv = 4.0e0*pi*(v_ +dv/2.0e0)**2*dv
 for ir in range(rN):
     for iv in range(vN):
-        v_d = v_[iv] + dv/2.0e0
         G[ir][iv] = P[ir][iv]/(rho*float(N)*tN_b*dVr[ir]*dVv[iv])
 with open('Prv.dat', 'wt') as f:
      for iv in range(vN):
