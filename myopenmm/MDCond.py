@@ -82,7 +82,8 @@ class MDConductor:
                         'platform' : 'CUDA', 
                         'precision' : 'double',
                         'recflag': False,
-                        'virtualflag': False}
+                        'virtualflag': False,
+                        'multidevice': None}
         
         print('Initialize...')               
     def loadFile(self, file):
@@ -159,6 +160,8 @@ class MDConductor:
         self.recflag = InpDict['recflag']
         self.reporterformat = InpDict['reporterformat']
         self.virtualflag = InpDict['virtualflag']
+        self.multidevice = InpDict['multidevice']
+      
 
         with open('openmm.out', 'wt') as f:
             print('writing openmm.out...')
@@ -166,17 +169,30 @@ class MDConductor:
                 k = k.ljust(20)
                 f.write('{0}:{1}\n'.format(k, v))
 
-    def create_platform(self, deviceindex='0'):
+    def create_platform(self, deviceindex=None):
         pltfmname = self.platform
         precision = self.precision
         self.pltform = Platform.getPlatformByName(pltfmname)
         if self.platform == 'CUDA':
-            self.properties = {'Precision': precision, 'DeviceIndex': deviceindex}
+            if deviceindex is None:
+                if self.multidevice is None:
+                    self.properties = {'Precision': precision}
+                else:
+                    self.properties = {'Precision': precision, 'DeviceIndex': self.multidevice}
+            else:
+                self.properties = {'Precision': precision, 'DeviceIndex': deviceindex}
         elif self.platform == 'CPU':
             self.properties = {}
         elif self.platform == 'OpenCL':
-            self.properties = {'OpenCLPrecision': precision, 'DeviceIndex': deviceindex}
+            if deviceindex is None:
+                if self.multidevice is None:
+                    self.properties = {'Precision': precision}
+                else:
+                    self.properties = {'Precision': precision, 'DeviceIndex': self.multidevice}
+            else:
+                self.properties = {'OpenCLPrecision': precision, 'DeviceIndex': deviceindex}
 
+        print(self.properties)
 
     def preparation(self, sysdir='SYS/', mddir='MD/'):
         
@@ -383,7 +399,7 @@ class MDConductor:
         return integrator
 
 
-    def setup(self, sysgro, systop, deviceindex='0',sysdir='SYS/'):
+    def setup(self, sysgro, systop, deviceindex=None,sysdir='SYS/'):
         # Create gro
         if self.fileformat == 'GRO':
             gro = GromacsGroFile(sysgro)
@@ -534,7 +550,7 @@ class MDConductor:
                     f.write('CRYST1  {0:7.3f}  {0:7.3f}  {0:7.3f}  90.00  90.00  90.00 P 1           1\n'.format(10.0e0*pbcbox[0]))
                     f.write(self.anum[1]+'\n')
                     for i,line in enumerate(self.lines[:-2]):
-                        l = line[:30] + ' {0:7.3f} {1:7.3f} {2:7.3f}  '.format(10.0e0*pos[i][0], 10.0e0*pos[i][1], 10.0e0*pos[i][2])
+                        l = line[:30] + ' {0:7.3f} {1:7.3f} {2:7.3f}'.format(10.0e0*pos[i][0], 10.0e0*pos[i][1], 10.0e0*pos[i][2])
                         l += line[56:]+'\n'
                         f.write(l)
                     f.write('TER\nENDMDL')
