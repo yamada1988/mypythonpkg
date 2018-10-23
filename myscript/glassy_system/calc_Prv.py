@@ -26,8 +26,8 @@ def func(r,v):
         dummy = P[r_box][v_box]*(r*np.sin(k*r)/(k))*(v*np.sin(q*v)/(q))*(2.0e0*math.pi)**2
     return dummy 
 
-def phi_u(v, betaM):
-    return v**2*math.sqrt(betaM/math.pi)**3*np.exp(-betaM*v**2)
+def phi(v, betaM):
+    return math.sqrt(2.0e0/math.pi)*math.sqrt(betaM/2.0e0)**3*v**2*math.exp(-betaM/4.0e0*v**2)
 
 args = sys.argv
 fname = args[1]
@@ -45,7 +45,7 @@ with open(fname, mode='rb') as f:
 print('time:', time.time() - t)
 
 tN = len(d['x'])
-talpha = 1.0e0
+talpha = 0.00020e0
 tmax = int(tN*talpha)
 tN = tmax
 box_size = d['L']
@@ -54,11 +54,11 @@ print(tN, box_size)
 
 # Phisical Parameters
 N =  len(R[0])
-dt = 1.0e0 #(ps)
+dt = 0.010e0 #(ps)
 L = box_size #(nm) 
 rho = float(N/(L**3))
-mO = 16.00*1.66e-27 #(kg)
-mH =  1.008*1.66e-27 #(kg)
+mO = 16.00*1.6611296e-27 #(kg)
+mH =  1.008*1.6611296e-27 #(kg)
 Minv = 1/(mO + mH + mH) #(kg^-1)
 kB = 1.3801e-23 #(J K^-1)
 betaM = 1/(kB*T*Minv)*1.0E+06  # (nm/ps)^-2
@@ -70,11 +70,14 @@ r_max = float(L/2.0e0)
 rN = 200
 dr = (r_max-r_min)/ float(rN)
 r_ = np.array([r_min + ir*dr for ir in range(rN)])
-v_min = 0.0e0
+v_0 = math.sqrt(betaM)
 v_max = 4.0e0
-vN = 500
-dv = (v_max-v_min)/ float(vN)
+v_min = 0.0e0
+vN = 200
+dv = (v_max - v_min) / float(vN)
 v_ = np.array([v_min + iv*dv for iv in range(vN)])
+vs = v_ + dv*0.50e0
+v_0 = 1
 
 bnum = 1
 tN_b = int(tN/bnum)
@@ -83,6 +86,8 @@ print('tN_b:',tN_b)
 
 print(r_max)
 rm0 = 10.0e0
+vm0 = 2.0e0
+print(vm0)
 # Calculate rho(k,q,t)
 R = d['x']
 V = d['v']
@@ -92,7 +97,7 @@ g = [0.0e0 for ir in range(rN)]
 for it in range(tN_b):
     print('it:', it)
     rvec = np.array(R[it])
-    vvec = np.array(V[it])
+    vvec = np.array(V[it]) 
     # Cannot use distance.pdist due to PBC
     xr = rvec[np.newaxis, :] - rvec[:, np.newaxis]
     xr -= L * np.ceil(xr/L) # unset PBC
@@ -101,9 +106,9 @@ for it in range(tN_b):
     rm = np.amin(r)
     if rm < rm0:
         rm0 = rm
-    vr = vvec[np.newaxis, :] - vvec[:, np.newaxis]
+    vr = vvec[np.newaxis, :] + vvec[:, np.newaxis]
     vij = np.sqrt(np.sum(vr**2, axis=2))
-    v = vij[np.triu_indices(N, k = 1)]
+    v = vij[np.triu_indices(N, k = 1)] / v_0
 
     p, rax, vax = np.histogram2d(r, v, bins=(rN, vN), range=((0.0, r_max), (0.0, v_max)))
     P += p
@@ -112,31 +117,36 @@ print('sanity check:')
 ofname_ = 'DAT/P{0:d}_'.format(int(T))
 # normalization
 print(np.sum(P), P.shape)
-dVr = np.zeros(rN)
-dVv = np.zeros(vN)
-dVr = 4.0e0*pi*(r_ +dr/2.0e0)**2*dr
-dVv = 4.0e0*pi*(v_ +dv/2.0e0)**2*dv
+dVr = 4.0e0*pi*(r_ +dr*0.50e0)**2*dr
+dVv = 4.0e0*pi*(v_ +dv*0.50e0)**2*dv*v_0**3
 for ir in range(rN):
     for iv in range(vN):
-        G[ir][iv] = P[ir][iv]/(float(N-1)*tN_b*dVr[ir]*2.0e0)
+        G[ir][iv] = P[ir][iv]/(float(N-1)*tN_b*dVr[ir])
+
 with open(ofname_+'rv.dat', 'wt') as f:
      for iv in range(vN):
         for ir in range(rN):
             f.write('{0:6.4f}\t{1:6.4f}\t{2:8.6f}\n'.format(v_[iv], r_[ir], G[ir][iv]))
         f.write('\n')
 
+for ir in range(rN):
+    fname = 'DAT/manyfiles/P{0:d}_r{1:03d}.dat'.format(int(T), ir)
+    with open(fname, 'wt') as f:
+        for iv in range(vN):
+            f.write('{0:6.4f}\t{1:8.6f}\t{2:8.6f}\n'.format(v_[iv], G[ir][iv], G[ir][iv]/phi(vs[iv], v_0**-2)))
+
+
 with open(ofname_+'r.dat', 'wt') as f:
     g = np.sum(P, axis=1)
     print(rho)
     for ir in range(rN):
-        g[ir] /= ((N-1)*tN_b*dVr[ir]*2.0e0)
+        g[ir] /= (0.50e0*N*(N-1)*tN_b)
         f.write('{0:6.4f}\t{1:8.6f}\n'.format(r_[ir], g[ir]))
 
 with open(ofname_+'v.dat', 'wt') as f:
-    g = np.sum(P, axis=0)
+    g = np.sum(P*dr, axis=0)/ np.sum(P*dr*dv)
     for iv in range(vN):
-        g[iv] /= (tN_b*N)
-        f.write('{0:6.4f}\t{1:8.6f}\n'.format(v_[iv], g[iv]))
+        f.write('{0:6.4f}\t{1:8.6f}\t{2:8.6f}\t{3:8.6f}\n'.format(v_[iv], g[iv], phi(vs[iv], betaM), g[iv]/phi(vs[iv], v_0**-2)))
 
 Ginfo = {'r':r_, 'v':v_, 'G':G, 'N':N, 'tN':tN_b}
 opname = ofname_ + 'rv'.format(T) + '.pickle'
