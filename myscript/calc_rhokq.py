@@ -4,14 +4,9 @@ import math
 import numpy as np
 import pickle
 import statsmodels.api as sm
+import tqdm
 import time
 
-
-#
-# Time measuring version
-#
-# time.sh: 
-##!/bin/bash
 
 #
 # Calculate rho(k,q,t), <rho(k,q)>, and <drho(k,q,t)drho(-k,-q,0)> from Gromacs trrfile.
@@ -41,26 +36,26 @@ with open(fname, mode='rb') as f:
     d = pickle.load(f)
 
 tN = len(d['x'])
-R = d['x']
-V = d['v']
+R = d['x'][:3000]
+V = d['v'][:3000]
 box_size = d['L']
 print(tN, box_size)
 print('load picklefile time:', time.time() - t)
 
 # Phisical Parameters
 N =  len(R[0])
-dt = 0.010e0 #(ps)
+dt = 1.0e0 #(ps)
 L = box_size #(nm) 
-mO = 16.00e-27 #(kg)
-mH =  1.008e-27 #(kg)
+mO = 16.00*1.66e-27 #(kg)
+mH =  1.008*1.66e-27 #(kg)
 Minv = 1/(mO + mH + mH) #(kg^-1)
 kB = 1.3801e-23 #(J K^-1)
 
 # Wave number Parameters
 k0 = 2.0e0*pi / L # (nm^-1)
-dk = 1.0*2.0e0*pi / L # (nm^-1)
-vth = math.sqrt(3.0e0*kB*T*Minv) # (nm/fs)^-1 = (km/s)^-1
-alpha = 50.0
+dk = 1.0e0*2.0e0*pi / L # (nm^-1)
+vth = math.sqrt(kB*T*Minv) /1000.0e0 # (nm/fs)^-1 = (km/s)^-1
+alpha = 0.0250
 dq = alpha * 2.0e0*pi / vth
 q0 = 0.0e0
 qN = nq_max - nq_min + 1
@@ -68,8 +63,13 @@ kN = nk_max - nk_min + 1
 
 t0 = time.time()
 
-K = np.array([1/math.sqrt(3) *np.array([k0+i*dk, k0+i*dk, k0+i*dk]) for i in range(nk_min, nk_max+1)])
-Q = np.array([1/math.sqrt(3) * np.array([q0+i*dq, q0+i*dq, q0+i*dq]) for i in range(nq_min, nq_max+1)])
+#K = np.array([1/math.sqrt(3) *np.array([k0+i*dk, k0+i*dk, k0+i*dk]) for i in range(nk_min, nk_max+1)])
+#Q = np.array([1/math.sqrt(3) * np.array([q0+i*dq, q0+i*dq, q0+i*dq]) for i in range(nq_min, nq_max+1)])
+K = np.array([[k0 + dk*ix, k0 + dk*iy, k0 + dk*iz] for ix in range(kN) for iy in range(kN) for iz in range(kN)])
+Q = np.array([[q0 + dq*ix, q0 + dq*iy, q0 + dq*iz] for ix in range(qN) for iy in range(qN) for iz in range(qN)])
+
+# Zip R[it][i] and V[it][i]
+RV = np.dstack((R,V))
 for k in K:
     for i,ki in enumerate(k):
         ki = round(ki, 6)
@@ -78,39 +78,29 @@ for q in Q:
     for i,qi in enumerate(q):
         qi = round(qi, 6)
         q[i] = qi
+# Zip K[ik] and Q[iq]
+KQ = np.array([ (k,q) for q in Q for k in K])
+print(KQ.shape)
+KQ = KQ.reshape(kN**3*qN**3,6)
 
 t1 = time.time()
-rho = np.array([[[(0+1j) for it in range(tN)] for q in Q] for k in K])
-print('rho:')
-print(rho.shape)
 # Calculate rho(k,q,t)
-for ik,k in enumerate(K):
-    for iq,q in enumerate(Q):
-        theta = np.dot(R,k) + np.dot(V,q)
-        rho[ik][iq] = np.sum(np.exp(theta*-1j), axis=1)
+theta = np.dot(RV,KQ.T)
+rho = np.sum(np.exp(theta*-1j), axis=1)
 print("Calculate rho(k,q,t) time:", time.time()-t1)
 
-t2 = time.time()
-# Calculate C(k,q,t) = <drho(k,q,t)drho(-k,q,0)>
-thalf = int(tN*0.8)
-C_kqt = [[[0.0 for it in range(tN)] for q in Q] for k in K]
-for ik in range(kN):
-    for iq in range(qN):
-        C_kqt[ik][iq] = sm.tsa.stattools.acf(rho[ik][iq], nlags=thalf)
+print(rho.shape)
+# Calculate <rho(k,q)>
+rho = np.sum(rho, axis=0) / float(tN)
 
-print("Calculate C(k,q,t) time:", time.time()-t2)
-
+print('rho:', rho.shape)
 t3 = time.time()
-for ik,nk in enumerate(range(nk_min, nk_max+1)):
-    for iq,nq in enumerate(range(nq_min, nq_max+1)):
-        ofname = 'DAT/'+nens+'nk{0:02d}nq{1:02d}_{2:d}.dat'.format(nk,nq,int(T))
-        with open(ofname, 'wt') as f:
-            f.write('# k=[{0[0]},{0[1]},{0[2]}]\n# q=[{1[0]},{1[1]},{1[2]}]\n# t(ps) C(k,q,t)\n'.format(K[ik],Q[iq]))
-
-        for t_interval in range(thalf-1):
-            t = '{0:5.2f}'.format(t_interval * dt)
-            with open(ofname, 'a+') as f:
-                f.write('{0:5.2f}\t{1:9.7f}\t{2:9.7f}\n'.format(float(t), C_kqt[ik][iq][t_interval].real, C_kqt[ik][iq][t_interval].imag))
+ofname = 'DAT/rho'+nens+'kq_{0:d}.dat'.format(int(T))
+with open(ofname, 'wt') as f:
+    f.write('# kx\tky\tkz\tqx\tqy\tqz\trho(k,q,t)\n')
+with open(ofname, 'a+') as f:
+    for ikq,kq in enumerate(KQ):
+        f.write('{0:5.3f}\t{1:5.3f}\t{2:5.3f}\t{3:5.3f}\t{4:5.3f}\t{5:5.3f}\t{6:6.4f}\t{7:6.4f}\n'.format(kq[0],kq[1],kq[2],kq[3],kq[4],kq[5], rho[ikq].real, rho[ikq].imag))
 
 print("write file time:", time.time()-t3)
 print("total time:", time.time()-t0)
