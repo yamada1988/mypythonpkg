@@ -37,12 +37,12 @@ tmax = int(tN*talpha)
 tN = tmax
 box_size = d['L']
 R = d['x']
-print(tN, box_size)
 
 # Phisical Parameters
 N =  len(R[0])
 dt = 1.0e0 #(ps)
 L = box_size #(nm) 
+print(N, tN, box_size)
 rho = float(N/(L**3))
 mO = 16.00*1.6611296e-27 #(kg)
 mH =  1.008*1.6611296e-27 #(kg)
@@ -52,21 +52,23 @@ betaM = 1/(kB*T*Minv)*1.0E+06  # (nm/ps)^-2
 print(betaM)
 
 # Space-Velocity Parameters
-r_min = 0.0e0
+r_min = 0
 r_max = L
-rN = 16
+rN = 96
 dr = (r_max-r_min)/ float(rN)
 r_ = np.array([r_min + ir*dr for ir in range(rN)])
 v_0 = math.sqrt(betaM)
 ngp_max = 5.0e0
 ngp_min = -5.0e0
-ngpN = 1000
+ngpN = 100
 dngp = (ngp_max - ngp_min) / float(ngpN)
 ngp_ = np.array([ngp_min + ingp*dngp for ingp in range(ngpN)])
 ngp_s = ngp_ + dngp*0.50e0
 
 # Calculate P(x,y,z,u,v,w)
 R = np.array(d['x'])
+print(R.shape)
+
 V = d['v']
 # unset PBC 
 R -= np.trunc(R/L)*L
@@ -112,6 +114,8 @@ for ix in range(rN):
                 zp = 0.0e0
                 for ingp in range(ngpN):
                     zp += P[ix][iy][iz][ingp]*dngp
+                if zp == 0.0e0:
+                    zp = 1.0e0
                 fp = ngp_s * P[ix][iy][iz]/zp * dngp
                 np = integrate.simps(fp, range(ngpN))
                 f.write('{0:6.4f}\t{1:6.4f}\t{2:8.7f}\n'.format(r_[iy], r_[iz], np))
