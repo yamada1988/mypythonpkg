@@ -1,6 +1,7 @@
 import sys
 import math
 import numpy as np
+from numpy.fft import fftn
 import pickle
 from scipy.spatial import distance
 from scipy import integrate
@@ -29,7 +30,7 @@ with open(fname, mode='rb') as f:
 print('time:', time.time() - t)
 
 tN = len(d['x'])
-talpha = 0.00010e0
+talpha = 0.020e0
 tmax = int(tN*talpha)
 tN = tmax
 box_size = d['L']
@@ -55,8 +56,8 @@ rN = 16
 dr = (r_max-r_min)/ float(rN)
 r_ = np.array([r_min + ir*dr for ir in range(rN)])
 v_0 = math.sqrt(betaM)
-v_max = 4.0e0
-v_min = -4.0e0
+v_max = 5.0e0
+v_min = -5.0e0
 vN = 16
 dv = (v_max - v_min) / float(vN)
 v_ = np.array([v_min + iv*dv for iv in range(vN)])
@@ -70,26 +71,39 @@ R -= np.trunc(R/L)*L
 R += np.round((0.50e0*L-R)/L)*L
 
 G = [[0.0e0 for iv in range(vN)] for j in range(rN)]
-P = np.zeros((rN, rN, rN, vN, vN, vN))
+P = np.zeros((tN, rN, rN, rN, vN, vN, vN))
 g = [0.0e0 for ir in range(rN)]
 for it in range(tN):
     print('it:', it)
     rvec = np.array(R[it])
-    vvec = np.array(V[it]) 
+    vvec = np.array(V[it])  
     rv = np.hstack((rvec,vvec))
-    p, rvax = np.histogramdd(rv, bins=(rN, rN, rN, vN, vN, vN), range=((0.0, r_max), (0.0, r_max), (0.0, r_max), (v_min, v_max), (v_min, v_max), (v_min, v_max)))
-    P += p
+    p, rvax = np.histogramdd(rv, bins=(rN, rN, rN, vN, vN, vN), range=((0.0, r_max), (0.0, r_max), (0.0, r_max), (v_min, v_max), (v_min, v_max), (v_min, v_max)), normed=True)
+    P[it] = p
 
-# normalization
-P /= (tN*N)
 rvax = np.array(rvax)
 print(rvax)
 print(rvax.shape)
 print(P.shape)
 print('sanity check:')
-print('ZP:', np.sum(P))
+print('ZP:', np.sum(P*dr*dr*dr*dv*dv*dv ,axis=(1,2,3,4,5,6)))
 
-#sys.exit()
+# Wave number Parameters
+vth = math.sqrt(kB*T*Minv) /1000.0e0 # (nm/fs)^-1 = (km/s)^-1
+alpha = 0.0250
+dq = alpha * 2.0e0*pi / vth
+q0 = 0.0e0
+nq_max = 10
+nq_min =  1
+qN = nq_max - nq_min + 1
+
+
+Prq = fftn(P, axes=(4,5,6))
+for it in range(tN):
+    print(Prq[it][:,:,:,0,0,0])
+
+print(Prq.shape)
+sys.exit()
 with open(ofname_+'rv.dat', 'wt') as f:
      for iv in range(vN):
         for ir in range(rN):
