@@ -16,6 +16,7 @@
 
 from __future__ import print_function
 from simtk.openmm import *
+from simtk.openmm.app import *
 from simtk.unit import *
 import numpy
 import parmed as pmd
@@ -159,7 +160,9 @@ system.addForce(nbforce)
 
 # Create Integrator and Context.
 integrator = LangevinIntegrator(temperature, collision_rate, timestep)
-simulation = Simulation(pdb.topology, system, integrator, platform)
+platform = Platform.getPlatformByName('OpenCL')
+properties = {'Precision':'mixed'}
+simulation = Simulation(pdb.topology, system, integrator, platform, properties)
 simulation.reporters.append(mdtraj.reporters.HDF5Reporter(mdh5, 1000))
 simulation.reporters.append(app.StateDataReporter(stdout, 1000, time=True, step=True,
     potentialEnergy=True, temperature=True, density=True,progress=True, remainingTime=True,
