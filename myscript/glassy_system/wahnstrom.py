@@ -18,10 +18,11 @@ from __future__ import print_function
 from simtk.openmm import *
 from simtk.openmm.app import *
 from simtk.unit import *
+import mdtraj
 import numpy
 import parmed as pmd
 import sys
-
+from sys import stdout
 
 def write_pdb(filename, atoms, coordinates, box, mode="w"):
     """Very primitive PDB writer.
@@ -42,10 +43,10 @@ def write_pdb(filename, atoms, coordinates, box, mode="w"):
         xyz.write("HEADER    simple PDB file with {0:d} atoms\n".format(len(atoms)))
         xyz.write("CRYST1{0:9.3f}{1:9.3f}{2:9.3f}  90.00  90.00  90.00 P 1        1\n".format(box[0], box[1], box[2]))
         for i in xrange(len(atoms)):
-            serial = i+1
+            serial = (i+1) % 10000
             name = resName = atoms[i]
             chainID = 'A'
-            resSeq = i+1
+            resSeq = (i+1) % 10000
             iCode = ''
             occupancy = 1.0
             tempFactor = 0.0
@@ -61,7 +62,7 @@ print(""" ###########################
 # Specify simulation parameters
 # =============================================================================
 
-nparticles = 216 # number of total particles
+nparticles = 5000 # number of total particles
 n1 = int(nparticles/2)
 n2 = n1
 atoms = ['' for i in range(nparticles)]
@@ -102,17 +103,17 @@ print("Target temperature:")
 Tstar = float(temp)
 print(Tstar)
 
-reduced_density = 0.775 # reduced density rho*sigma^3
+reduced_density = 0.00250 # reduced density rho*sigma^3
 temperature = Tstar * kelvin # temperature
 collision_rate = 2.0 / picosecond # collision rate for Langevin thermostat
-timestep = 2.0 * femtosecond # integrator timestep
+timestep = 1.0 * femtosecond # integrator timestep
 
 # =============================================================================
 # Compute box size.
 # =============================================================================
-volume = nparticles*(sigma1**3)/reduced_density
+volume = (n1*sigma1**3+n2*sigma2**3)/reduced_density
 box_edge = volume**(1.0/3.0)
-cutoff = min(box_edge*0.49, 4.0*sigma1) # Compute cutoff
+cutoff = min(box_edge*0.49, 2.50*sigma1) # Compute cutoff
 print("sigma1, sigma2, box_edge, cutoff")
 print(sigma1, sigma2, box_edge, cutoff)
 
@@ -120,9 +121,17 @@ print(sigma1, sigma2, box_edge, cutoff)
 # Build systems
 # =============================================================================
 
-# Create random initial positions.
-import numpy.random
-positions = Quantity(numpy.random.uniform(high=box_edge/angstroms, size=[nparticles,3]), angstrom)
+# Create random initial positions. PART01
+gridnum = int(box_edge/(12.0*angstrom))
+print('total_divnum:',gridnum**3)
+x_ = numpy.linspace(0, box_edge/angstrom, num=gridnum)
+x_ = Quantity(x_ , angstrom)
+x_, y_, z_ = numpy.meshgrid(x_, x_, x_)
+xyzmesh = numpy.vstack((x_.flatten(), y_.flatten(), z_.flatten())).T
+id_ = numpy.random.choice(gridnum**3,nparticles,replace=False)
+xyz_ = numpy.array([xyzmesh[i] for i in id_])
+positions = Quantity(xyz_ , angstrom)
+
 pbcbox = [box_edge, box_edge, box_edge]
 pbcbox = list(map(lambda x: x/angstrom, pbcbox))
 pos = list(map(lambda x: x/angstrom, positions))
@@ -147,8 +156,10 @@ for particle_index in range(nparticles):
         system.addParticle(mass2)
         # Add normal particle.
         nbforce.addParticle(charge2, sigma2, epsilon2)
+nbforce.setNonbondedMethod(NonbondedForce.CutoffPeriodic)
+nbforce.setCutoffDistance(cutoff) 
 system.addForce(nbforce)
-
+system.addForce(MonteCarloBarostat(100*atmospheres, Tstar*kelvin, 25))
 #for particle_index in range(nparticles):
 #    c_, s_, e_ = nbforce.getParticleParameters(particle_index)
 #    print(particle_index, c_, s_, e_)
@@ -161,34 +172,31 @@ system.addForce(nbforce)
 # Create Integrator and Context.
 integrator = LangevinIntegrator(temperature, collision_rate, timestep)
 platform = Platform.getPlatformByName('OpenCL')
-properties = {'Precision':'mixed'}
+properties = {'Precision':'double'}
+mdh5 = 'MD/md0001_{0:03d}.h5'.format(int(temp))
+mdh5_ = mdtraj.reporters.HDF5Reporter(mdh5, 1000)
 simulation = Simulation(pdb.topology, system, integrator, platform, properties)
-simulation.reporters.append(mdtraj.reporters.HDF5Reporter(mdh5, 1000))
-simulation.reporters.append(app.StateDataReporter(stdout, 1000, time=True, step=True,
+simulation.reporters.append(mdtraj.reporters.HDF5Reporter(mdh5, 1000))simulation.reporters.append(StateDataReporter(stdout, 1000, time=True, step=True,
     potentialEnergy=True, temperature=True, density=True,progress=True, remainingTime=True,
-    speed=True, totalSteps=totaltime, separator='\t'))
+    speed=True, totalSteps=nequil_steps, separator='\t'))
 
 # Initiate from last set of positions.
 simulation.context.setPositions(positions)
 
 # Minimize energy from coordinates.
 print("minimizing..." )
-simulation.LocalEnergyMinimizer.minimize()
+simulation.minimizeEnergy(maxIterations=100000)
 
 # Equilibrate.
 print("equilibrating...")
 simulation.step(nequil_steps)
 
-
 # append reporters
 totaltime = 2500000
-mdh5 = 'MD/md0001_{0:03d}.h5'.format(int(temp))
-integrator = LangevinIntegrator(temperature, collision_rate, timestep)
-simulation = Simulation(top.topology, system, integrator0, platform)
-simulation.reporters.append(mdtraj.reporters.HDF5Reporter(mdh5, 1000))
-simulation.reporters.append(app.StateDataReporter(stdout, 1000, time=True, step=True,
-    potentialEnergy=True, temperature=True, density=True,progress=True, remainingTime=True,
-    speed=True, totalSteps=totaltime, separator='\t'))
+#simulation.reporters.append(mdtraj.reporters.HDF5Reporter(mdh5, 1000))
+#simulation.reporters.append(StateDataReporter(stdout, 1000, time=True, step=True,
+#    potentialEnergy=True, temperature=True, density=True,progress=True, remainingTime=True,
+#    speed=True, totalSteps=totaltime, separator='\t'))
 
 # run 500 ps of production simulation
 print('Running Production...')
