@@ -176,7 +176,8 @@ properties = {'Precision':'double'}
 mdh5 = 'MD/md0001_{0:03d}.h5'.format(int(temp))
 mdh5_ = mdtraj.reporters.HDF5Reporter(mdh5, 1000)
 simulation = Simulation(pdb.topology, system, integrator, platform, properties)
-simulation.reporters.append(mdtraj.reporters.HDF5Reporter(mdh5, 1000))simulation.reporters.append(StateDataReporter(stdout, 1000, time=True, step=True,
+simulation.reporters.append(mdtraj.reporters.HDF5Reporter(mdh5, 1000))
+simulation.reporters.append(StateDataReporter(stdout, 1000, time=True, step=True,
     potentialEnergy=True, temperature=True, density=True,progress=True, remainingTime=True,
     speed=True, totalSteps=nequil_steps, separator='\t'))
 
