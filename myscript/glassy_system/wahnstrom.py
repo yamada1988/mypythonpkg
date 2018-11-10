@@ -26,7 +26,6 @@ from sys import stdout
 
 def write_pdb(filename, atoms, coordinates, box, mode="w"):
     """Very primitive PDB writer.
-
     :Arguments:
        *filename*
            name of the output file
@@ -36,7 +35,6 @@ def write_pdb(filename, atoms, coordinates, box, mode="w"):
            coordinates as Nx3 array (must be in Angstroem)
        *box*
            box lengths (Lx Ly Lz) (must be in Angstroem)
-
     See http://www.wwpdb.org/documentation/format32/sect9.html
     """
     with open(filename, mode) as xyz:
@@ -62,7 +60,7 @@ print(""" ###########################
 # Specify simulation parameters
 # =============================================================================
 
-nparticles = 5000 # number of total particles
+nparticles = 200000 # number of total particles
 n1 = int(nparticles/2)
 n2 = n1
 atoms = ['' for i in range(nparticles)]
@@ -85,7 +83,7 @@ epsilon2 = 0.994 * kilojoule/mole# Lennard-Jones well-depth
 charge2 = 0.0e0 * elementary_charge # argon model has no charge
 
 # Steps
-nequil_steps = 50000 # number of dynamics steps for equilibration
+nequil_steps  = 50000 # number of dynamics steps for equilibration
 nsample_steps = 50000 # number of dynamics steps for sampling
 
 # temperature
@@ -103,10 +101,10 @@ print("Target temperature:")
 Tstar = float(temp)
 print(Tstar)
 
-reduced_density = 0.00250 # reduced density rho*sigma^3
+reduced_density = 0.750 # reduced density rho*sigma^3
 temperature = Tstar * kelvin # temperature
 collision_rate = 2.0 / picosecond # collision rate for Langevin thermostat
-timestep = 1.0 * femtosecond # integrator timestep
+timestep = 2.0 * femtosecond # integrator timestep
 
 # =============================================================================
 # Compute box size.
@@ -122,108 +120,121 @@ print(sigma1, sigma2, box_edge, cutoff)
 # =============================================================================
 
 # Create random initial positions. PART01
-gridnum = int(box_edge/(12.0*angstrom))
+gridnum = int(box_edge/(2.0*angstrom))
 print('total_divnum:',gridnum**3)
 x_ = numpy.linspace(0, box_edge/angstrom, num=gridnum)
 x_ = Quantity(x_ , angstrom)
 x_, y_, z_ = numpy.meshgrid(x_, x_, x_)
 xyzmesh = numpy.vstack((x_.flatten(), y_.flatten(), z_.flatten())).T
-id_ = numpy.random.choice(gridnum**3,nparticles,replace=False)
-xyz_ = numpy.array([xyzmesh[i] for i in id_])
-positions = Quantity(xyz_ , angstrom)
 
-pbcbox = [box_edge, box_edge, box_edge]
-pbcbox = list(map(lambda x: x/angstrom, pbcbox))
-pos = list(map(lambda x: x/angstrom, positions))
-pdbf = 'SYS/system0001.pdb'
-write_pdb(pdbf, atoms, pos, pbcbox)
-pdb = pmd.load_file(pdbf)
+for attmpt in range(50):
+    print('attempt:', attmpt)
+    id_ = numpy.random.choice(gridnum**3,nparticles,replace=False)
+    xyz_ = numpy.round(numpy.array([xyzmesh[i]+1.0*numpy.random.rand(3) for i in id_]), 6)
+    positions = Quantity(xyz_ , angstrom)
 
-# Create argon system where first particle is alchemically modified by lambda_value.
-system = System()
-system.setDefaultPeriodicBoxVectors(Vec3(box_edge, 0, 0), Vec3(0, box_edge, 0), Vec3(0, 0, box_edge))
+    pbcbox = [box_edge, box_edge, box_edge]
+    pbcbox = list(map(lambda x: x/angstrom, pbcbox))
+    pos = numpy.array(list(map(lambda x: x/angstrom, positions)))
+    pdbf = 'SYS/system0001.pdb'
+    write_pdb(pdbf, atoms, pos, pbcbox)
+    pdb_ = PDBFile(pdbf)
 
-# Retrieve the NonbondedForce
-nbforce = NonbondedForce()
-for particle_index in range(nparticles):
-    if particle_index < n1:
+    # Create argon system where first particle is alchemically modified by lambda_value.
+    system = System()
+    system.setDefaultPeriodicBoxVectors(Vec3(box_edge, 0, 0), Vec3(0, box_edge, 0), Vec3(0, 0, box_edge))
+
+    # Retrieve the NonbondedForce
+    print('Set nonbonded parameters...')
+    nbforce = NonbondedForce()
+    for particle_index in range(n1):
         atoms[particle_index] = 'Ar'
         system.addParticle(mass1)
         # Add normal particle.
         nbforce.addParticle(charge1, sigma1, epsilon1)
-    elif n1 <= particle_index  < nparticles:
+    for particle_index in range(n1,n1+n2):
         atoms[particle_index] = 'Br'
         system.addParticle(mass2)
         # Add normal particle.
         nbforce.addParticle(charge2, sigma2, epsilon2)
-nbforce.setNonbondedMethod(NonbondedForce.CutoffPeriodic)
-nbforce.setCutoffDistance(cutoff) 
-system.addForce(nbforce)
-system.addForce(MonteCarloBarostat(100*atmospheres, Tstar*kelvin, 25))
-#for particle_index in range(nparticles):
-#    c_, s_, e_ = nbforce.getParticleParameters(particle_index)
-#    print(particle_index, c_, s_, e_)
+    nbforce.setNonbondedMethod(NonbondedForce.CutoffPeriodic)
+    nbforce.setCutoffDistance(cutoff) 
+    system.addForce(nbforce)
+    print('Finish to set nonbonded parameters')
 
-# =============================================================================
-# Run simulations at each alchemical lambda value.
-# Reduced potentials of sampled configurations are computed for all alchemical states for use with MBAR analysis.
-# =============================================================================
+    # Create Integrator and Context.
+    integrator = LangevinIntegrator(temperature, collision_rate, timestep)
+    platform = Platform.getPlatformByName('CPU')
+    properties = {'Precision':'mixed'}
+    mdh5 = 'MD/mim0001_{0:03d}.h5'.format(int(temp))
+    mdh5_ = mdtraj.reporters.HDF5Reporter(mdh5, 1000)
+    simulation = Simulation(pdb_.topology, system, integrator, platform)
+    simulation.reporters.append(mdh5_)
+    simulation.reporters.append(StateDataReporter(stdout, 1000, time=True, step=True,
+        potentialEnergy=True, temperature=True, density=True,progress=True, remainingTime=True,
+        speed=True, totalSteps=nequil_steps, separator='\t'))
 
-# Create Integrator and Context.
-integrator = LangevinIntegrator(temperature, collision_rate, timestep)
-platform = Platform.getPlatformByName('OpenCL')
-properties = {'Precision':'double'}
-mdh5 = 'MD/md0001_{0:03d}.h5'.format(int(temp))
-mdh5_ = mdtraj.reporters.HDF5Reporter(mdh5, 1000)
-simulation = Simulation(pdb.topology, system, integrator, platform, properties)
-simulation.reporters.append(mdtraj.reporters.HDF5Reporter(mdh5, 1000))
-simulation.reporters.append(StateDataReporter(stdout, 1000, time=True, step=True,
-    potentialEnergy=True, temperature=True, density=True,progress=True, remainingTime=True,
-    speed=True, totalSteps=nequil_steps, separator='\t'))
+    # Initiate from last set of positions.
+    simulation.context.setPositions(positions)
+    state = simulation.context.getState(getEnergy=True)
+    energyval = state.getPotentialEnergy()
+    print('before:', energyval)
 
-# Initiate from last set of positions.
-simulation.context.setPositions(positions)
-
-# Minimize energy from coordinates.
-print("minimizing..." )
-simulation.minimizeEnergy(maxIterations=100000)
-
-# Equilibrate.
-print("equilibrating...")
-simulation.step(nequil_steps)
-
-# append reporters
-totaltime = 2500000
-#simulation.reporters.append(mdtraj.reporters.HDF5Reporter(mdh5, 1000))
-#simulation.reporters.append(StateDataReporter(stdout, 1000, time=True, step=True,
-#    potentialEnergy=True, temperature=True, density=True,progress=True, remainingTime=True,
-#    speed=True, totalSteps=totaltime, separator='\t'))
-
-# run 500 ps of production simulation
-print('Running Production...')
-simulation.step(totaltime)
-
-# output grofile
-mdgro = 'SYS/out0001_{0:03d}.gro'.format(int(temp))
-with open(sysgro, 'rt') as f:
-    lines = [line.strip('\n') for line in f]
-    anum = lines[1]
-    lines_ = lines[2:]
+    # Minimize energy from coordinates.
+    print("minimizing..." )
+    simulation.minimizeEnergy(maxIterations=1000)
+    state = simulation.context.getState(getEnergy=True)
+    energyval = state.getPotentialEnergy()
+    print('after:', energyval)
+    if energyval/(kilojoule/mole) <= 1e+3:
+        break
+    else:
+        mdh5_.close()
 
 positions = simulation.context.getState(getPositions=True).getPositions()
 box = simulation.context.getState().getPeriodicBoxVectors()
 pbcbox = [box[0][0], box[1][1], box[2][2]]
 pos = [pos for pos in positions]
-pbcbox = list(map(lambda x: x/nanometer, pbcbox))
-pos = list(map(lambda x: x/nanometer, pos))
-dt_now = datetime.datetime.now()
-date_ = "-{0:%Y-%m-%d-%H}".format(dt_now)
-with open(mdgro, 'wt') as f:
-    f.write('Generated by OpenMM: Date = {0:%Y-%m-%d %H:%M:%S}\n'.format(dt_now))
-    f.write(' '+anum+'\n')
-    for i,line in enumerate(lines_[:-1]):
-        l = line[:20] + '{0:8.4f}{1:8.4f}{2:8.4f}\n'.format(pos[i][0], pos[i][1], pos[i][2])
-        f.write(l)
-    f.write('{0:7.4f}\t{0:7.4f}\t{0:7.4f}\n'.format(pbcbox[0], pbcbox[1], pbcbox[2]))
+pbcbox = list(map(lambda x: x/angstrom, pbcbox))
+pos = list(map(lambda x: x/angstrom, pos))
+write_pdb(pdbf, atoms, pos, pbcbox)
+pdb_ = PDBFile(pdbf)
+system.setDefaultPeriodicBoxVectors(Vec3(box_edge, 0, 0), Vec3(0, box_edge, 0), Vec3(0, 0, box_edge))
+# Create Integrator and Context.
+integrator = LangevinIntegrator(temperature, collision_rate, timestep)
+platform = Platform.getPlatformByName('OpenCL')
+properties = {'Precision':'mixed'}
+mdh5 = 'MD/md0001_{0:03d}.h5'.format(int(temp))
+mdh5_ = mdtraj.reporters.HDF5Reporter(mdh5, 1000, potentialEnergy=False, kineticEnergy=False, temperature=False, velocities=True)
+simulation = Simulation(pdb_.topology, system, integrator, platform, properties)
+# simulation = Simulation(pdb_.topology, system, integrator, platform)
+simulation.reporters.append(mdh5_)
+simulation.reporters.append(StateDataReporter(stdout, 1000, time=True, step=True,
+      potentialEnergy=True, temperature=True, density=True,progress=True, remainingTime=True,
+      speed=True, totalSteps=nsample_steps+nequil_steps, separator='\t'))
+
+# Initiate from last set of positions.
+simulation.context.setPositions(positions)
+state = simulation.context.getState(getEnergy=True)
+energyval = state.getPotentialEnergy()
+print('before:', energyval)
+
+# Equilibrate.
+print("equilibrating...")
+simulation.step(nequil_steps)
+
+# run 500 ps of production simulation
+print('Running Production...')
+simulation.step(nsample_steps)
+
+# output pdbfile
+mdpdb = 'SYS/out0001_{0:03d}.pdb'.format(int(temp))
+positions = simulation.context.getState(getPositions=True).getPositions()
+box = simulation.context.getState().getPeriodicBoxVectors()
+pbcbox = [box[0][0], box[1][1], box[2][2]]
+pos = [pos for pos in positions]
+pbcbox = list(map(lambda x: x/angstrom, pbcbox))
+pos = list(map(lambda x: x/angstrom, pos))
+write_pdb(mdpdb, atoms, pos, pbcbox)
 
 print('Done!')
