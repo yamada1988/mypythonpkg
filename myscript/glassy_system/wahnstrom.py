@@ -40,7 +40,7 @@ def write_pdb(filename, atoms, coordinates, box, mode="w"):
     with open(filename, mode) as xyz:
         xyz.write("HEADER    simple PDB file with {0:d} atoms\n".format(len(atoms)))
         xyz.write("CRYST1{0:9.3f}{1:9.3f}{2:9.3f}  90.00  90.00  90.00 P 1        1\n".format(box[0], box[1], box[2]))
-        for i in xrange(len(atoms)):
+        for i in range(len(atoms)):
             serial = (i+1) % 10000
             name = resName = atoms[i]
             chainID = 'A'
