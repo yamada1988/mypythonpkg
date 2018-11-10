@@ -60,7 +60,7 @@ print(""" ###########################
 # Specify simulation parameters
 # =============================================================================
 
-nparticles = 200000 # number of total particles
+nparticles =5000000 # number of total particles
 n1 = int(nparticles/2)
 n2 = n1
 atoms = ['' for i in range(nparticles)]
@@ -127,62 +127,63 @@ x_ = Quantity(x_ , angstrom)
 x_, y_, z_ = numpy.meshgrid(x_, x_, x_)
 xyzmesh = numpy.vstack((x_.flatten(), y_.flatten(), z_.flatten())).T
 
+id_ = numpy.random.choice(gridnum**3,nparticles,replace=False)
+xyz_ = numpy.round(numpy.array([xyzmesh[i]+1.0*numpy.random.rand(3) for i in id_]), 6)
+positions = Quantity(xyz_ , angstrom)
+
+pbcbox = [box_edge, box_edge, box_edge]
+pbcbox = list(map(lambda x: x/angstrom, pbcbox))
+pos = numpy.array(list(map(lambda x: x/angstrom, positions)))
+pdbf = 'SYS/system0001.pdb'
+write_pdb(pdbf, atoms, pos, pbcbox)
+pdb_ = PDBFile(pdbf)
+
+# Create argon system where first particle is alchemically modified by lambda_value.
+system = System()
+system.setDefaultPeriodicBoxVectors(Vec3(box_edge, 0, 0), Vec3(0, box_edge, 0), Vec3(0, 0, box_edge))
+
+# Retrieve the NonbondedForce
+print('Set nonbonded parameters...')
+nbforce = NonbondedForce()
+for particle_index in range(n1):
+    atoms[particle_index] = 'Ar'
+    system.addParticle(mass1)
+    # Add normal particle.
+    nbforce.addParticle(charge1, sigma1, epsilon1)
+for particle_index in range(n1,n1+n2):
+    atoms[particle_index] = 'Br'
+    system.addParticle(mass2)
+    # Add normal particle.
+    nbforce.addParticle(charge2, sigma2, epsilon2)
+nbforce.setNonbondedMethod(NonbondedForce.CutoffPeriodic)
+nbforce.setCutoffDistance(cutoff) 
+system.addForce(nbforce)
+print('Finish to set nonbonded parameters')
+
+# Create Integrator and Context.
+integrator = LangevinIntegrator(temperature, collision_rate, timestep)
+platform = Platform.getPlatformByName('CPU')
+properties = {'Precision':'mixed'}
+mdh5 = 'MD/mim0001_{0:03d}.h5'.format(int(temp))
+mdh5_ = mdtraj.reporters.HDF5Reporter(mdh5, 1000)
+simulation = Simulation(pdb_.topology, system, integrator, platform)
+simulation.reporters.append(mdh5_)
+simulation.reporters.append(StateDataReporter(stdout, 1000, time=True, step=True,
+      potentialEnergy=True, temperature=True, density=True,progress=True, remainingTime=True,
+      speed=True, totalSteps=nequil_steps, separator='\t'))
+
+# Initiate from last set of positions.
+simulation.context.setPositions(positions)
+
 for attmpt in range(50):
-    print('attempt:', attmpt)
-    id_ = numpy.random.choice(gridnum**3,nparticles,replace=False)
-    xyz_ = numpy.round(numpy.array([xyzmesh[i]+1.0*numpy.random.rand(3) for i in id_]), 6)
-    positions = Quantity(xyz_ , angstrom)
-
-    pbcbox = [box_edge, box_edge, box_edge]
-    pbcbox = list(map(lambda x: x/angstrom, pbcbox))
-    pos = numpy.array(list(map(lambda x: x/angstrom, positions)))
-    pdbf = 'SYS/system0001.pdb'
-    write_pdb(pdbf, atoms, pos, pbcbox)
-    pdb_ = PDBFile(pdbf)
-
-    # Create argon system where first particle is alchemically modified by lambda_value.
-    system = System()
-    system.setDefaultPeriodicBoxVectors(Vec3(box_edge, 0, 0), Vec3(0, box_edge, 0), Vec3(0, 0, box_edge))
-
-    # Retrieve the NonbondedForce
-    print('Set nonbonded parameters...')
-    nbforce = NonbondedForce()
-    for particle_index in range(n1):
-        atoms[particle_index] = 'Ar'
-        system.addParticle(mass1)
-        # Add normal particle.
-        nbforce.addParticle(charge1, sigma1, epsilon1)
-    for particle_index in range(n1,n1+n2):
-        atoms[particle_index] = 'Br'
-        system.addParticle(mass2)
-        # Add normal particle.
-        nbforce.addParticle(charge2, sigma2, epsilon2)
-    nbforce.setNonbondedMethod(NonbondedForce.CutoffPeriodic)
-    nbforce.setCutoffDistance(cutoff) 
-    system.addForce(nbforce)
-    print('Finish to set nonbonded parameters')
-
-    # Create Integrator and Context.
-    integrator = LangevinIntegrator(temperature, collision_rate, timestep)
-    platform = Platform.getPlatformByName('CPU')
-    properties = {'Precision':'mixed'}
-    mdh5 = 'MD/mim0001_{0:03d}.h5'.format(int(temp))
-    mdh5_ = mdtraj.reporters.HDF5Reporter(mdh5, 1000)
-    simulation = Simulation(pdb_.topology, system, integrator, platform)
-    simulation.reporters.append(mdh5_)
-    simulation.reporters.append(StateDataReporter(stdout, 1000, time=True, step=True,
-        potentialEnergy=True, temperature=True, density=True,progress=True, remainingTime=True,
-        speed=True, totalSteps=nequil_steps, separator='\t'))
-
-    # Initiate from last set of positions.
-    simulation.context.setPositions(positions)
+    print('attempt:{0:3d}'.format(attmpt))
     state = simulation.context.getState(getEnergy=True)
     energyval = state.getPotentialEnergy()
     print('before:', energyval)
 
     # Minimize energy from coordinates.
     print("minimizing..." )
-    simulation.minimizeEnergy(maxIterations=1000)
+    simulation.minimizeEnergy(maxIterations=10)
     state = simulation.context.getState(getEnergy=True)
     energyval = state.getPotentialEnergy()
     print('after:', energyval)
@@ -203,11 +204,10 @@ system.setDefaultPeriodicBoxVectors(Vec3(box_edge, 0, 0), Vec3(0, box_edge, 0), 
 # Create Integrator and Context.
 integrator = LangevinIntegrator(temperature, collision_rate, timestep)
 platform = Platform.getPlatformByName('OpenCL')
-properties = {'Precision':'mixed'}
+properties = {'Precision':'single'}
 mdh5 = 'MD/md0001_{0:03d}.h5'.format(int(temp))
 mdh5_ = mdtraj.reporters.HDF5Reporter(mdh5, 1000, potentialEnergy=False, kineticEnergy=False, temperature=False, velocities=True)
 simulation = Simulation(pdb_.topology, system, integrator, platform, properties)
-# simulation = Simulation(pdb_.topology, system, integrator, platform)
 simulation.reporters.append(mdh5_)
 simulation.reporters.append(StateDataReporter(stdout, 1000, time=True, step=True,
       potentialEnergy=True, temperature=True, density=True,progress=True, remainingTime=True,
