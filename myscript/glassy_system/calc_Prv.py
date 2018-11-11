@@ -1,6 +1,7 @@
 import sys
 import math
 import numpy as np
+from numpy.fft import fftn
 import pickle
 from scipy.spatial import distance
 from scipy import integrate
@@ -8,26 +9,10 @@ import time
 
 
 #
-# This script calculate P(k,q) from compickle.
+# This script calculate P(x,y,z,u,v,w) from compickle.
 # Sample:
 # python script/calc_Prv.py MD/sample0001_01.pickle 
 #
-
-def func(r,v):
-    r_box = int(math.trunc(r/dr))
-    v_box = int(math.trunc(v/dv))
-    if k == 0.0e0 and not q == 0.0e0:
-        dummy = P[r_box][v_box]*(2.0e0*r**2)*(v*np.sin(q*v)/(q))*(2.0e0*math.pi)**2
-    elif not k == 0.0e0 and q == 0.0e0:
-        dummy = P[r_box][v_box]*(r*np.sin(k*r)/(k))*(2.0e0*v**2)*(2.0e0*math.pi)**2
-    elif k == 0.0e0 and q == 0.0e0:
-        dummy = P[r_box][v_box]*(2.0e0*r**2)*(2.0e0*v**2)*(2.0e0*math.pi)**2
-    else:
-        dummy = P[r_box][v_box]*(r*np.sin(k*r)/(k))*(v*np.sin(q*v)/(q))*(2.0e0*math.pi)**2
-    return dummy 
-
-def phi(v, betaM):
-    return math.sqrt(2.0e0/math.pi)*math.sqrt(betaM/2.0e0)**3*v**2*math.exp(-betaM/4.0e0*v**2)
 
 args = sys.argv
 fname = args[1]
@@ -45,7 +30,7 @@ with open(fname, mode='rb') as f:
 print('time:', time.time() - t)
 
 tN = len(d['x'])
-talpha = 0.00020e0
+talpha = 0.020e0
 tmax = int(tN*talpha)
 tN = tmax
 box_size = d['L']
@@ -54,7 +39,7 @@ print(tN, box_size)
 
 # Phisical Parameters
 N =  len(R[0])
-dt = 0.010e0 #(ps)
+dt = 1.0e0 #(ps)
 L = box_size #(nm) 
 rho = float(N/(L**3))
 mO = 16.00*1.6611296e-27 #(kg)
@@ -66,63 +51,59 @@ print(betaM)
 
 # Space-Velocity Parameters
 r_min = 0.0e0
-r_max = float(L/2.0e0)
-rN = 200
+r_max = L
+rN = 16
 dr = (r_max-r_min)/ float(rN)
 r_ = np.array([r_min + ir*dr for ir in range(rN)])
 v_0 = math.sqrt(betaM)
-v_max = 4.0e0
-v_min = 0.0e0
-vN = 200
+v_max = 5.0e0
+v_min = -5.0e0
+vN = 16
 dv = (v_max - v_min) / float(vN)
 v_ = np.array([v_min + iv*dv for iv in range(vN)])
 vs = v_ + dv*0.50e0
-v_0 = 1
 
-bnum = 1
-tN_b = int(tN/bnum)
-totalN = int(N*(N-1)/2)
-print('tN_b:',tN_b)
-
-print(r_max)
-rm0 = 10.0e0
-vm0 = 2.0e0
-print(vm0)
-# Calculate rho(k,q,t)
-R = d['x']
+# Calculate P(x,y,z,u,v,w)
+R = np.array(d['x'])
 V = d['v']
+# unset PBC 
+R -= np.trunc(R/L)*L
+R += np.round((0.50e0*L-R)/L)*L
+
 G = [[0.0e0 for iv in range(vN)] for j in range(rN)]
-P = np.zeros((rN, vN))
+P = np.zeros((tN, rN, rN, rN, vN, vN, vN))
 g = [0.0e0 for ir in range(rN)]
-for it in range(tN_b):
+for it in range(tN):
     print('it:', it)
     rvec = np.array(R[it])
-    vvec = np.array(V[it]) 
-    # Cannot use distance.pdist due to PBC
-    xr = rvec[np.newaxis, :] - rvec[:, np.newaxis]
-    xr -= L * np.ceil(xr/L) # unset PBC
-    rij = np.sqrt(np.sum(xr**2, axis=2))
-    r = rij[np.triu_indices(N, k = 1)]
-    rm = np.amin(r)
-    if rm < rm0:
-        rm0 = rm
-    vr = vvec[np.newaxis, :] + vvec[:, np.newaxis]
-    vij = np.sqrt(np.sum(vr**2, axis=2))
-    v = vij[np.triu_indices(N, k = 1)] / v_0
+    vvec = np.array(V[it])  
+    rv = np.hstack((rvec,vvec))
+    p, rvax = np.histogramdd(rv, bins=(rN, rN, rN, vN, vN, vN), range=((0.0, r_max), (0.0, r_max), (0.0, r_max), (v_min, v_max), (v_min, v_max), (v_min, v_max)), normed=True)
+    P[it] = p
 
-    p, rax, vax = np.histogram2d(r, v, bins=(rN, vN), range=((0.0, r_max), (0.0, v_max)))
-    P += p
-
+rvax = np.array(rvax)
+print(rvax)
+print(rvax.shape)
+print(P.shape)
 print('sanity check:')
-ofname_ = 'DAT/P{0:d}_'.format(int(T))
-# normalization
-print(np.sum(P), P.shape)
-dVr = 4.0e0*pi*(r_ +dr*0.50e0)**2*dr
-dVv = 4.0e0*pi*(v_ +dv*0.50e0)**2*dv*v_0**3
-for ir in range(rN):
-    for iv in range(vN):
-        G[ir][iv] = P[ir][iv]/(float(N-1)*tN_b*dVr[ir])
+print('ZP:', np.sum(P*dr*dr*dr*dv*dv*dv ,axis=(1,2,3,4,5,6)))
 
+# Wave number Parameters
+vth = math.sqrt(kB*T*Minv) /1000.0e0 # (nm/fs)^-1 = (km/s)^-1
+alpha = 0.0250
+dq = alpha * 2.0e0*pi / vth
+q0 = 0.0e0
+nq_max = 10
+nq_min =  1
+qN = nq_max - nq_min + 1
+
+
+Prq = fftn(P, axes=(4,5,6))
+for it in range(tN):
+    print(Prq[it][:,:,:,0,0,0])
+
+print(Prq.shape)
+sys.exit()
 with open(ofname_+'rv.dat', 'wt') as f:
      for iv in range(vN):
         for ir in range(rN):
@@ -133,7 +114,7 @@ for ir in range(rN):
     fname = 'DAT/manyfiles/P{0:d}_r{1:03d}.dat'.format(int(T), ir)
     with open(fname, 'wt') as f:
         for iv in range(vN):
-            f.write('{0:6.4f}\t{1:8.6f}\t{2:8.6f}\n'.format(v_[iv], G[ir][iv], G[ir][iv]/phi(vs[iv], v_0**-2)))
+            f.write('{0:6.4f}\t{1:8.6f}\t{2:8.6f}\t{3:8.6f}\n'.format(v_[iv], G[ir][iv], phi(vs[iv], betaM), G[ir][iv]/phi(vs[iv], betaM)))
 
 
 with open(ofname_+'r.dat', 'wt') as f:
@@ -146,7 +127,7 @@ with open(ofname_+'r.dat', 'wt') as f:
 with open(ofname_+'v.dat', 'wt') as f:
     g = np.sum(P*dr, axis=0)/ np.sum(P*dr*dv)
     for iv in range(vN):
-        f.write('{0:6.4f}\t{1:8.6f}\t{2:8.6f}\t{3:8.6f}\n'.format(v_[iv], g[iv], phi(vs[iv], betaM), g[iv]/phi(vs[iv], v_0**-2)))
+        f.write('{0:6.4f}\t{1:8.6f}\t{2:8.6f}\t{3:8.6f}\n'.format(v_[iv], g[iv], phi(vs[iv], betaM), g[iv]/phi(vs[iv], betaM)))
 
 Ginfo = {'r':r_, 'v':v_, 'G':G, 'N':N, 'tN':tN_b}
 opname = ofname_ + 'rv'.format(T) + '.pickle'
