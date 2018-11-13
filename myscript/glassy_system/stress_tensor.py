@@ -21,6 +21,7 @@ from simtk.unit import *
 import mdtraj
 import numpy as np
 import parmed as pmd
+import pickle
 import sys
 from sys import stdout
 
@@ -52,15 +53,16 @@ def write_pdb(filename, atoms, coordinates, box, mode="w"):
             xyz.write("ATOM  {0:5d} {1:4s} {2:3s} {3:1s}{4:4d}{5:1s}   {6:8.3f}{7:8.3f}{8:8.3f}{9:6.2f}{10:6.2f}\n".format(serial, name, resName, chainID, resSeq, iCode, x, y, z, occupancy, tempFactor))
             
             
+nparticles =  50000 # number of total particles
 print(""" ###########################
    WAHNSTROM BINARY SYSTEM 
- ###########################""")
+   Num: {0:9d}
+ ###########################""".format(nparticles))
 
 # =============================================================================
 # Specify simulation parameters
 # =============================================================================
 
-nparticles = 200000 # number of total particles
 n1 = int(nparticles/2)
 n2 = n1
 atoms = ['' for i in range(nparticles)]
@@ -83,10 +85,10 @@ epsilon2 = 0.994 * kilojoule/mole# Lennard-Jones well-depth
 charge2 = 0.0e0 * elementary_charge # argon model has no charge
 
 # Steps
-nequil_steps  =  5000 # number of dynamics steps for equilibration
-nsample_steps = 50000 # number of dynamics steps for sampling
+nequil_steps  = 10000 # number of dynamics steps for equilibration
+nsample_steps = 10000 # number of dynamics steps for sampling
 
-rN = 48
+rN = 8
 
 # temperature
 args = sys.argv
@@ -97,13 +99,16 @@ kB = BOLTZMANN_CONSTANT_kB
 temp0 = epsilon1 / (kB*AVOGADRO_CONSTANT_NA)
 NA0 = AVOGADRO_CONSTANT_NA / mole
 m0 = mass1
+l0 = sigma1
 tau0 = ((m0/amu*1.661*10**(-27))*(sigma1/angstrom*10**-10)**2/(epsilon1/kilojoule/mole/NA0)/1000.0e0)**0.50 * 10**12 * picosecond
-print('num. of particles:', nparticles)
+f0 = m0*l0/(tau0**2)
+e0 = epsilon1
 print(temp0, epsilon1, tau0)
 print("Target temperature:")
 Tstar = float(temp)
 print(Tstar)
-kBT = kB * Tstar * kelvin / joule * 10**(-6) # 10^6 Nm
+print(e0/joule/AVOGADRO_CONSTANT_NA)
+kBT = kB * Tstar * kelvin * AVOGADRO_CONSTANT_NA / (kilojoule/mole) 
 print(kBT)
 
 reduced_density = 0.750 # reduced density rho*sigma^3
@@ -116,7 +121,7 @@ timestep = 2.0 * femtosecond # integrator timestep
 # =============================================================================
 volume = (n1*sigma1**3+n2*sigma2**3)/reduced_density
 box_edge = volume**(1.0/3.0)
-cutoff = min(box_edge*0.49, 2.50*sigma1) # Compute cutoff
+cutoff = min(box_edge*0.49, 3.0*sigma1) # Compute cutoff
 print("sigma1, sigma2, box_edge, cutoff")
 print(sigma1, sigma2, box_edge, cutoff)
 
@@ -124,7 +129,7 @@ print(sigma1, sigma2, box_edge, cutoff)
 # Build systems
 # =============================================================================
 
-# Create random initial positions. PART01
+# Create random initial positions
 gridnum = int(box_edge/(2.0*angstrom))
 print('total_divnum:',gridnum**3)
 x_ = np.linspace(0, box_edge/angstrom, num=gridnum)
@@ -180,7 +185,7 @@ simulation.reporters.append(StateDataReporter(stdout, 1000, time=True, step=True
 # Initiate from last set of positions.
 simulation.context.setPositions(positions)
 
-for attmpt in range(50):
+for attmpt in range(100):
     print('attempt:{0:3d}'.format(attmpt))
     state = simulation.context.getState(getEnergy=True)
     energyval = state.getPotentialEnergy()
@@ -196,22 +201,24 @@ for attmpt in range(50):
     else:
         mdh5_.close()
 
-pos = simulation.context.getState(getPositions=True).getPositions()
-pbcbox = simulation.context.getState().getPeriodicBoxVectors()
-pos /= angstrom
-pbcbox /=angstrom
+positions = simulation.context.getState(getPositions=True).getPositions()
+box = simulation.context.getState().getPeriodicBoxVectors()
+pbcbox = [box[0][0], box[1][1], box[2][2]]
+pos = [pos for pos in positions]
+pbcbox = list(map(lambda x: x/angstrom, pbcbox))
+pos = list(map(lambda x: x/angstrom, pos))
 write_pdb(pdbf, atoms, pos, pbcbox)
 pdb_ = PDBFile(pdbf)
 system.setDefaultPeriodicBoxVectors(Vec3(box_edge, 0, 0), Vec3(0, box_edge, 0), Vec3(0, 0, box_edge))
 # Create Integrator and Context.
 integrator = LangevinIntegrator(temperature, collision_rate, timestep)
-platform = Platform.getPlatformByName('OpenCL')
+platform = Platform.getPlatformByName('CUDA')
 properties = {'Precision':'single'}
 mdh5 = 'MD/md0001_{0:03d}.h5'.format(int(temp))
-mdh5_ = mdtraj.reporters.HDF5Reporter(mdh5, 1000, potentialEnergy=False, kineticEnergy=False, temperature=False, velocities=True)
+mdh5_ = mdtraj.reporters.HDF5Reporter(mdh5, 100, potentialEnergy=False, kineticEnergy=False, temperature=False, velocities=True)
 simulation = Simulation(pdb_.topology, system, integrator, platform, properties)
 simulation.reporters.append(mdh5_)
-simulation.reporters.append(StateDataReporter(stdout, 1000, time=True, step=True,
+simulation.reporters.append(StateDataReporter(stdout, 100, time=True, step=True,
       potentialEnergy=True, temperature=True, density=True,progress=True, remainingTime=True,
       speed=True, totalSteps=nsample_steps+nequil_steps, separator='\t'))
 
@@ -220,88 +227,108 @@ simulation.context.setPositions(positions)
 state = simulation.context.getState(getEnergy=True)
 energyval = state.getPotentialEnergy()
 print('before:', energyval)
-
 # Equilibrate.
 print("equilibrating...")
 simulation.step(nequil_steps)
 
 # run 500 ps of production simulation
 print('On-the-fly calculation...')
-masses = np.array([system.getParticleMass(indx)/amu * 1.6611296e-27 for indx in range(nparticles)])
-g = np.zeros((3,rN,rN,rN))
-v = np.zeros((3,rN,rN,rN))
-sigma0_k = np.zeros((3,3,rN,rN,rN))
-sigma_k = np.zeros((3,3,rN,rN,rN))
-sigma_v = np.zeros((3,3,rN,rN,rN))
-S = np.zeros((3,3,rN,rN,rN))
-tau = np.zeros((3,3,rN,rN,rN))
-for it in range(10):
-    simulation.step(10)
+masses = np.array([system.getParticleMass(indx)/amu  for indx in range(nparticles)]) 
+local_g = np.zeros((3,rN,rN,rN))
+local_v = np.zeros((3,rN,rN,rN))
+local_sigma0_k = np.zeros((3,3,rN,rN,rN))
+local_sigma_k = np.zeros((3,3,rN,rN,rN))
+local_sigma_v = np.zeros((3,3,rN,rN,rN))
+local_S = np.zeros((3,3,rN,rN,rN))
+local_tau = np.zeros((3,3,rN,rN,rN))
+local_vorticity = np.zeros((3,rN,rN,rN))
+for it in range(nsample_steps/100):
+    simulation.step(100)
 
     pos = simulation.context.getState(getPositions=True).getPositions(asNumpy =True)
     vel = simulation.context.getState(getVelocities=True).getVelocities(asNumpy =True)
     frc = simulation.context.getState(getForces=True).getForces(asNumpy =True)  
     box = simulation.context.getState().getPeriodicBoxVectors(asNumpy =True)
     box /= nanometers
-    pos /= nanometers
-    vel /= nanometers/picoseconds
-    frc /= kilojoule / nanometers / mole / 10**(-3) # N / nm
-
+    pos /= nanometers 
+    vel /= (nanometers/picoseconds)
+    frc /= (kilojoule/mole/nanometers)
+    #print(frc,kBT)
     L = box[0,0]
     # unset PBC 
     pos -= np.trunc(pos/L)*L
     pos += np.round((0.50e0*L-pos)/L)*L
 
     # grid parameters
-    r_min = 0.0e0
+    r_min = 0.0e0 
     r_max = L
     dr = (r_max-r_min)/ float(rN)
-
-    # calculate rho, g, v, sigma_ab, tau_ab, S_ab, eta as field variables
-    massd, rax = np.histogramdd(pos, bins=(rN, rN, rN), range=((0.0, r_max), (0.0, r_max), (0.0, r_max)), weights=masses) 
+    dV = dr**3
+    # print('dr:',dr, 'L:', L, 'dV:', dV)
+    # calculate rho, g, v, sigma_ab, tau_ab, S_ab, eta as local variables
+    local_mass, rax = np.histogramdd(pos, bins=(rN, rN, rN), range=((0.0, r_max), (0.0, r_max), (0.0, r_max)), weights=masses)
     for xa in range(3):
-        g[xa], rax = np.histogramdd(pos, bins=(rN, rN, rN), range=((0.0, r_max), (0.0, r_max), (0.0, r_max)), weights=masses*vel.T[xa])
-    v = g/massd
+        local_g[xa], rax = np.histogramdd(pos, bins=(rN, rN, rN), range=((0.0, r_max), (0.0, r_max), (0.0, r_max)), weights=masses*vel.T[xa])
+    local_mass /= dV
+    local_g /= dV
+    local_v = local_g/local_mass
 
     for xa in range(3):
         for xb in range(3):
             sk = masses*vel.T[xa]*vel.T[xb]-kBT*np.eye(3)[xa][xb]
-            sigma0_k[xa][xb], rax = np.histogramdd(pos, bins=(rN, rN, rN), range=((0.0, r_max), (0.0, r_max), (0.0, r_max)), weights=sk)
-            sigma_k[xa][xb] = sigma0_k[xa][xb] - g[xa]*v[xb]
-            #print(sigma_k[xa][xb]/massd)
+            #print('mvv, kT:')
+            #print(masses*vel.T[xa]*vel.T[xb], kBT)
+            local_sigma0_k[xa][xb], rax = np.histogramdd(pos, bins=(rN, rN, rN), range=((0.0, r_max), (0.0, r_max), (0.0, r_max)), weights=sk)
+            local_sigma_k[xa][xb] = local_sigma0_k[xa][xb]/dV - local_g[xa]*local_v[xb]
+            #print('sigma_k:')
+            #print(local_sigma_k[xa][xb])
             sv = pos.T[xa]*frc.T[xb]
-            sigma_v[xa][xb], rax = np.histogramdd(pos, bins=(rN, rN, rN), range=((0.0, r_max), (0.0, r_max), (0.0, r_max)), weights=sv)
-            #print(sigma_v[xa][xb])
-    sigma = sigma_k + sigma_v
-    #print('sigma:')
-    #print(sigma)
+            local_sigma_v[xa][xb], rax = np.histogramdd(pos, bins=(rN, rN, rN), range=((0.0, r_max), (0.0, r_max), (0.0, r_max)), weights=sv)
+            #print('sigma_v:')
+            #print(local_sigma_v[xa][xb]/dV)
+    local_sigma_v /= dV
+    local_sigma = local_sigma_k + local_sigma_v
 
-    prs = 1.0e0/3.0e0*np.trace(sigma)
-    print('pressure:')
-    print(prs)
+    local_prs = 1.0e0/3.0e0*np.trace(local_sigma)
+    #print('local_pressure:')
+    #print(local_prs)
 
     for xa in range(3):
         for xb in range(3):   
-            tau[xa][xb] = sigma[xa][xb] - prs*np.eye(3)[xa][xb]
+            local_tau[xa][xb] = local_sigma[xa][xb] - local_prs*np.eye(3)[xa][xb]
 
-    print('stress tensor:')
-    print(tau)
+    #print('local stress tensor:')
+    #print(local_tau)
    
+    local_div = np.sum(np.gradient(local_v, dr, axis=0))
     for xa in range(3):
         for xb in range(3):
-            S[xa][xb] = 0.50e0*(np.gradient(v[xa], dr, axis=xb)+np.gradient(v[xb], dr,axis=xa))
-            #print(S[xa][xb])
-            eta = tau[xa][xb] / S[xa][xb]
-            print('eta(r):', eta)
-   
+            local_S[xa][xb] = 2.0e0*(np.gradient(local_v[xa], dr, axis=xb)+np.gradient(local_v[xb], dr, axis=xa) - 1.0/3.0*local_div*np.eye(3)[xa][xb]) 
+            #print('local velocity strain tensor:')
+            #print(local_S[xa][xb])
+            local_viscosity = local_tau[xa][xb] / local_S[xa][xb]
+            #print('eta(r):', local_eta)
 
-sys.exit('Toriaezu end')
+    for xa in range(3): 
+        xb = (xa+1) % 3 
+        xc = (xa+2) % 3
+        local_vorticity[xa] = np.gradient(local_v[xc], dr, axis=xb) - np.gradient(local_v[xb], dr, axis=xc)
+        #print('local vorticity:')
+        #print(local_vorticity)
+
+    # dump local variavles
+    local_variables = {'local mass': local_mass, 'local velc': local_v, 'local visc': local_viscosity, 'local pres': local_prs, 'local vort': local_vorticity}
+    with open('MD/local{0:05d}_{1:03d}.pickle'.format(it, int(temp)), 'wb') as fp:
+        pickle.dump(local_variables, fp)
+
 # output pdbfile
 mdpdb = 'SYS/out0001_{0:03d}.pdb'.format(int(temp))
-pos = simulation.context.getState(getPositions=True).getPositions()
-pbcbox = simulation.context.getState().getPeriodicBoxVectors()
-pos /= angstrom
-pbcbox /= angstrom
+positions = simulation.context.getState(getPositions=True).getPositions()
+box = simulation.context.getState().getPeriodicBoxVectors()
+pbcbox = [box[0][0], box[1][1], box[2][2]]
+pos = [pos for pos in positions]
+pbcbox = list(map(lambda x: x/angstrom, pbcbox))
+pos = list(map(lambda x: x/angstrom, pos))
 write_pdb(mdpdb, atoms, pos, pbcbox)
 
 print('Done!')
