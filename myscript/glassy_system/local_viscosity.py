@@ -1,18 +1,21 @@
-# example illustrating use of Free Energy OpenMM plugin.
-# Calculation of chemical potential of argon in a periodic box.
+# example illustrating use of on-the-fly calculation for local variables in OpenMM plugin.
+# Calculation of Wahnstrom binary solution systems
 #
 # AUTHOR
 #
-# John D. Chodera <jchodera@berkeley.edu>
+# Kazuo Yamada
 #
 # REQUIREMENTS
 #
 # np - Scientific computing package - http://np.scipy.org
+# h5py - Pythonic interface to the HDF5 binary data format - https://www.h5py.org
 #
 # REFERENCES
 #
 # [1] Michael R. Shirts and John D. Chodera. Statistically optimal analysis of samples from multiple equilibrium states.
 # J. Chem. Phys. 129:124105 (2008)  http://dx.doi.org/10.1063/1.2978177
+# [2] Goran Wahnstrom. Molecular-dynamics study of a supercooled two-component Lennard- Jones system.
+# Phys. Rev. A. 44:6 (1991)
 
 from __future__ import print_function
 from simtk.openmm import *
@@ -21,7 +24,7 @@ from simtk.unit import *
 import mdtraj
 import numpy as np
 import parmed as pmd
-import pickle
+import h5py
 import sys
 from sys import stdout
 
@@ -191,13 +194,13 @@ for attmpt in range(100):
     state = simulation.context.getState(getEnergy=True)
     energyval = state.getPotentialEnergy()
     print('attempt {0:6d}:'.format(attmpt))
-    print('Enrg: {0:8.5e} (kJ/mol)', energyval/(kilojoule/mole))
+    print('Enrg: {0:8.5e} (kJ/mol)'.format(energyval/(kilojoule/mole)))
 
     # Minimize energy from coordinates.
     simulation.minimizeEnergy(maxIterations=2)
     forces = simulation.context.getState(getForces=True).getForces(asNumpy=True) / (kilojoule/mole/nanometers) 
     force_max = np.amax(forces)
-    print('Fmax: {0:8.5e} (kJ/mol/nm)', force_max)
+    print('Fmax: {0:8.5e} (kJ/mol/nm)'.format(force_max))
     if force_max <= 200.0e0:
         break
     else:
@@ -240,10 +243,10 @@ print('On-the-fly calculation...')
 masses = np.array([system.getParticleMass(indx)/amu  for indx in range(nparticles)]) 
 for it in range(nsample_steps/recstep):
     print('it:',it)
+    time_ = (it+1)*recstep 
     lg = np.zeros((3,rN,rN,rN))
     lv = np.zeros((3,rN,rN,rN))
     ls0k = np.zeros((3,3,rN,rN,rN))
-    lsk = np.zeros((3,3,rN,rN,rN))
     lsv = np.zeros((3,3,rN,rN,rN))
     lS = np.zeros((3,3,rN,rN,rN))
     lvo = np.zeros((3,rN,rN,rN))
@@ -257,18 +260,12 @@ for it in range(nsample_steps/recstep):
     local_tau = np.zeros((3, 3, rN, rN, rN))
     local_vorticity = np.zeros((3,  rN, rN,rN))
     local_S = np.zeros((3, 3, rN, rN, rN))
-    for t in range(recstep/10):
-        simulation.step(10)
-        t_ = it * recstep + t
-        pos = simulation.context.getState(getPositions=True).getPositions(asNumpy =True)
-        vel = simulation.context.getState(getVelocities=True).getVelocities(asNumpy =True)
-        frc = simulation.context.getState(getForces=True).getForces(asNumpy =True)  
-        box = simulation.context.getState().getPeriodicBoxVectors(asNumpy =True)
-        box /= nanometers
-        pos /= nanometers 
-        vel /= (nanometers/picoseconds)
-        frc /= (kilojoule/mole/nanometers)
-        #print(frc,kBT)
+    for t in range(recstep):
+        simulation.step(1)
+        pos = simulation.context.getState(getPositions=True).getPositions(asNumpy =True) / nanometers
+        vel = simulation.context.getState(getVelocities=True).getVelocities(asNumpy =True) / (nanometers/picoseconds)
+        frc = simulation.context.getState(getForces=True).getForces(asNumpy =True)   / (kilojoule/mole/nanometers)
+        box = simulation.context.getState().getPeriodicBoxVectors(asNumpy =True) / nanometers
         L = box[0,0]
         # unset PBC 
         pos -= np.trunc(pos/L)*L
@@ -288,14 +285,12 @@ for it in range(nsample_steps/recstep):
         lg /= dV
         local_mass += lm
         local_g += lg
-        local_v = local_g/local_mass
         for xa in range(3):
             for xb in range(3):
-                sk = masses*vel.T[xa]*vel.T[xb]-kBT*np.eye(3)[xa][xb]
+                sk = masses*vel.T[xa]*vel.T[xb]
                 #print('mvv, kT:')
                 #print(masses*vel.T[xa]*vel.T[xb], kBT)
                 ls0k[xa][xb], rax = np.histogramdd(pos, bins=(rN, rN, rN), range=((0.0, r_max), (0.0, r_max), (0.0, r_max)), weights=sk)
-                lsk[xa][xb] = ls0k[xa][xb]/dV - local_g[xa]*local_v[xb]
                 #print('sigma_k:')
                 #print(local_sigma_k[xa][xb])
                 sv = pos.T[xa]*frc.T[xb]
@@ -303,7 +298,7 @@ for it in range(nsample_steps/recstep):
                 #print('sigma_v:')
                 #print(local_sigma_v[xa][xb]/dV)
         lsv /= dV
-        local_sigmak += lsk
+        local_sigmak += ls0k
         local_sigmav += lsv
    
     # Time average
@@ -312,12 +307,16 @@ for it in range(nsample_steps/recstep):
     local_v = local_g/local_mass
     local_sigma /= recstep
     local_sigmak /= recstep
+    for xa in range(3):
+        for xb in range(3):
+            local_sigmak[xa][xb] -= local_g[xa] * local_v[xb]
     local_sigmav /= recstep
     local_sigma = local_sigmak + local_sigmav
+    #print(local_sigmak, local_sigmav)
     local_pressure = -1.0e0/3.0e0*np.trace(local_sigma)
     for xa in range(3):
         for xb in range(3): 
-            local_tau[xa][xb] /= local_sigma[xa][xb] - local_pressure*np.eye(3)[xa][xb]
+            local_tau[xa][xb] = local_sigma[xa][xb] - local_pressure*np.eye(3)[xa][xb]
 
     ld = np.sum(np.gradient(local_v, dr, axis=0))
     for xa in range(3):
@@ -336,7 +335,12 @@ for it in range(nsample_steps/recstep):
         #print(local_vorticity)
 
     # dump local variavles
-    local_variables = {'local mass': local_mass, 'local velcocity': local_v, 'local viscosity': local_viscosity, 'local pressure': local_pressure, 'local vorticity': local_vorticity}
+    local_variables = {'local mass': local_mass, 
+                       'local velocity': local_v, 
+                       'local stress tensor': local_tau, 
+                       'local viscosity': local_viscosity, 
+                       'local pressure': local_pressure, 
+                       'local vorticity': local_vorticity}
     with open('MD/local{0:05d}_{1:03d}.pickle'.format(it, int(temp)), 'wb') as fp:
         pickle.dump(local_variables, fp)
 
