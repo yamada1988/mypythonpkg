@@ -90,7 +90,7 @@ charge2 = 0.0e0 * elementary_charge # argon model has no charge
 
 # Steps
 nequil_steps  = 10000 # number of dynamics steps for equilibration
-nsample_steps =   100 # number of dynamics steps for sampling
+nsample_steps =   500 # number of dynamics steps for sampling
 
 rN = 4
 
@@ -240,6 +240,26 @@ simulation.step(nequil_steps)
 
 # run 500 ps of production simulation
 print('On-the-fly calculation...')
+units_ = {'length': 'nanometers',
+          'mass': 'amu',
+          'time': 'picosecond',
+          'force': 'kilojoule/mole/nanometer',
+          'energy': 'kilojoule/mole'}
+dt_atom = timestep * 10**-3 /picosecond
+
+with h5py.File('MD/local0001_{0:03d}.h5'.format(int(temp)), 'w') as f:
+    f.create_group('Units')
+    for k,v in units_.items():
+        f['Units'].create_dataset(k, data=v)
+    f.create_dataset('dt_atom', data=dt_atom)
+    f.create_dataset('localMass', shape=(nsample_steps/recstep, rN, rN, rN))
+    f.create_dataset('localVelocity', shape=(nsample_steps/recstep, 3, rN, rN, rN))
+    f.create_dataset('localStressTensor', shape=(nsample_steps/recstep, 3, 3, rN, rN, rN))
+    f.create_dataset('localShearViscosity', shape=(nsample_steps/recstep, rN, rN, rN))
+    f.create_dataset('localVorticity', shape=(nsample_steps/recstep, 3, rN, rN, rN))
+    f.create_dataset('MeshGrid', shape=(nsample_steps/recstep, 3, rN+1))
+    f.create_dataset('time', shape=(nsample_steps/recstep,))
+
 masses = np.array([system.getParticleMass(indx)/amu  for indx in range(nparticles)]) 
 for it in range(nsample_steps/recstep):
     print('it:',it)
@@ -334,15 +354,15 @@ for it in range(nsample_steps/recstep):
         #print('local vorticity:')
         #print(local_vorticity)
 
-    # dump local variavles
-    local_variables = {'local mass': local_mass, 
-                       'local velocity': local_v, 
-                       'local stress tensor': local_tau, 
-                       'local viscosity': local_viscosity, 
-                       'local pressure': local_pressure, 
-                       'local vorticity': local_vorticity}
-    with open('MD/local{0:05d}_{1:03d}.pickle'.format(it, int(temp)), 'wb') as fp:
-        pickle.dump(local_variables, fp)
+    meshgrid = np.array(rax)
+    with h5py.File('MD/local0001_{0:03d}.h5'.format(int(temp)), 'a') as f:
+        f['localMass'][it] = local_mass 
+        f['localVelocity'][it] = local_v 
+        f['localStressTensor'][it] = local_tau 
+        f['localShearViscosity'][it] = local_viscosity 
+        f['localVorticity'][it] = local_vorticity 
+        f['MeshGrid'][it] = meshgrid 
+        f['time'][it] = time_*timestep *10**-3 / femtosecond
 
 # output pdbfile
 mdpdb = 'SYS/out0001_{0:03d}.pdb'.format(int(temp))
