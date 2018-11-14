@@ -57,7 +57,7 @@ def write_pdb(filename, atoms, coordinates, box, mode="w"):
             
 
 # number of total particles            
-nparticles = 100000 
+nparticles = 500000 
 print(""" ###########################
    WAHNSTROM BINARY SYSTEM 
    Num: {0:9d}
@@ -89,10 +89,9 @@ epsilon2 = 0.994 * kilojoule/mole# Lennard-Jones well-depth
 charge2 = 0.0e0 * elementary_charge # argon model has no charge
 
 # Steps
-nequil_steps  = 10000 # number of dynamics steps for equilibration
-nsample_steps =   500 # number of dynamics steps for sampling
-
-rN = 4
+nequil_steps  = 50000 # number of dynamics steps for equilibration
+nsample_steps = 50000 # number of dynamics steps for sampling
+rN = 32
 
 # temperature
 args = sys.argv
@@ -213,16 +212,17 @@ write_pdb(pdbf, atoms, pos, pbcbox)
 pdb_ = PDBFile(pdbf)
 system.setDefaultPeriodicBoxVectors(Vec3(box_edge, 0, 0), Vec3(0, box_edge, 0), Vec3(0, 0, box_edge))
 # Create Integrator and Context.
-recstep = 100
+recstep =  50
+fhstep  = 500
 logfile = 'MD/log0001_{0:03d}.txt'.format(int(temp))
 integrator = LangevinIntegrator(temperature, collision_rate, timestep)
-platform = Platform.getPlatformByName('CUDA')
-properties = {'Precision':'single'}
+platform = Platform.getPlatformByName('OpenCL')
+properties = {'Precision':'mixed'}
 mdh5 = 'MD/md0001_{0:03d}.h5'.format(int(temp))
 mdh5_ = mdtraj.reporters.HDF5Reporter(mdh5, recstep, potentialEnergy=False, kineticEnergy=False, temperature=False, velocities=True)
 simulation = Simulation(pdb_.topology, system, integrator, platform, properties)
 simulation.reporters.append(mdh5_)
-simulation.reporters.append(StateDataReporter(stdout, recstep, time=True, step=True,
+simulation.reporters.append(StateDataReporter(logfile, recstep, time=True, step=True,
       potentialEnergy=True, temperature=True, density=True,progress=True, remainingTime=True,
       speed=True, totalSteps=nsample_steps+nequil_steps, separator='\t'))
 
@@ -238,7 +238,8 @@ units_ = {'length': 'nanometers',
           'mass': 'amu',
           'time': 'picosecond',
           'force': 'kilojoule/mole/nanometer',
-          'energy': 'kilojoule/mole'}
+          'energy': 'kilojoule/mole',
+          'dt_fh/dt_atm': fhstep}
 dt_atom = timestep * 10**-3 /picosecond
 
 with h5py.File('MD/local0001_{0:03d}.h5'.format(int(temp)), 'w') as f:
@@ -247,17 +248,15 @@ with h5py.File('MD/local0001_{0:03d}.h5'.format(int(temp)), 'w') as f:
         f['Units'].create_dataset(k, data=v)
     f.create_dataset('dt_atom', data=dt_atom)
     f.create_dataset('localMass', shape=(nsample_steps/recstep, rN, rN, rN))
-    f.create_dataset('localVelocity', shape=(nsample_steps/recstep, 3, rN, rN, rN))
     f.create_dataset('localStressTensor', shape=(nsample_steps/recstep, 3, 3, rN, rN, rN))
-    f.create_dataset('localShearViscosity', shape=(nsample_steps/recstep, rN, rN, rN))
-    f.create_dataset('localVorticity', shape=(nsample_steps/recstep, 3, rN, rN, rN))
-    f.create_dataset('MeshGrid', shape=(nsample_steps/recstep, 3, rN+1))
+    f.create_dataset('localMomentum', shape=(nsample_steps/recstep, 3, rN, rN, rN))
+    f.create_dataset('MeshGrid', shape=(3, rN+1))
     f.create_dataset('time', shape=(nsample_steps/recstep,))
 
 masses = np.array([system.getParticleMass(indx)/amu  for indx in range(nparticles)]) 
-for it in range(nsample_steps/recstep):
+for it in range(nsample_steps/fhstep):
     print('it:',it)
-    time_ = (it+1)*recstep 
+    time_ = (it+1)*fhstep 
     lg = np.zeros((3,rN,rN,rN))
     lv = np.zeros((3,rN,rN,rN))
     ls0k = np.zeros((3,3,rN,rN,rN))
@@ -267,14 +266,10 @@ for it in range(nsample_steps/recstep):
     local_mass = 0.0e0
     local_g = 0.0e0
     local_v = 0.0e0
-    local_prresure = np.zeros((rN, rN, rN))
     local_sigma = 0.0e0
-    local_sigmak = 0.0e0
+    local_sigma0k = 0.0e0
     local_sigmav = 0.0e0
-    local_tau = np.zeros((3, 3, rN, rN, rN))
-    local_vorticity = np.zeros((3,  rN, rN,rN))
-    local_S = np.zeros((3, 3, rN, rN, rN))
-    for t in range(recstep):
+    for t in range(fhstep):
         print('t_atom:', t)
         simulation.step(1)
         pos = simulation.context.getState(getPositions=True).getPositions(asNumpy =True) / nanometers
@@ -313,50 +308,25 @@ for it in range(nsample_steps/recstep):
                 #print('sigma_v:')
                 #print(local_sigma_v[xa][xb]/dV)
         lsv /= dV
-        local_sigmak += ls0k
+        local_sigma0k += ls0k
         local_sigmav += lsv
    
     # Time average
     local_mass /= recstep
     local_g /= recstep
-    local_v = local_g/local_mass
     local_sigma /= recstep
-    local_sigmak /= recstep
-    for xa in range(3):
-        for xb in range(3):
-            local_sigmak[xa][xb] -= local_g[xa] * local_v[xb]
+    local_sigma0k /= recstep
     local_sigmav /= recstep
-    local_sigma = local_sigmak + local_sigmav
+    local_sigma0 = local_sigma0k + local_sigmav
     #print(local_sigmak, local_sigmav)
-    local_pressure = -1.0e0/3.0e0*np.trace(local_sigma)
-    for xa in range(3):
-        for xb in range(3): 
-            local_tau[xa][xb] = local_sigma[xa][xb] - local_pressure*np.eye(3)[xa][xb]
-
-    ld = np.sum(np.gradient(local_v, dr, axis=0))
-    for xa in range(3):
-        for xb in range(3):
-            local_S[xa][xb] = (np.gradient(local_v[xa], dr, axis=xb)+np.gradient(local_v[xb], dr, axis=xa) - 1.0/3.0*ld*np.eye(3)[xa][xb]) 
-            #print('local velocity strain tensor:')
-            #print(local_S[xa][xb])
-            local_viscosity = 0.50e0* local_tau[xa][xb] / local_S[xa][xb]
-            #print('eta(r):', local_eta)
-
-    for xa in range(3): 
-        xb = (xa+1) % 3 
-        xc = (xa+2) % 3
-        local_vorticity[xa] = np.gradient(local_v[xc], dr, axis=xb) - np.gradient(local_v[xb], dr, axis=xc)
-        #print('local vorticity:')
-        #print(local_vorticity)
 
     meshgrid = np.array(rax)
     with h5py.File('MD/local0001_{0:03d}.h5'.format(int(temp)), 'a') as f:
         f['localMass'][it] = local_mass 
-        f['localVelocity'][it] = local_v 
-        f['localStressTensor'][it] = local_tau 
-        f['localShearViscosity'][it] = local_viscosity 
-        f['localVorticity'][it] = local_vorticity 
-        f['MeshGrid'][it] = meshgrid 
+        f['localStressTensor'][it] = local_sigma0
+        f['localMomentum'][it] = local_g
+        if t == 0:
+            f['MeshGrid'] = meshgrid 
         f['time'][it] = time_*timestep *10**-3 / femtosecond
 
 # output pdbfile
