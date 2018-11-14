@@ -57,7 +57,7 @@ def write_pdb(filename, atoms, coordinates, box, mode="w"):
             
 
 # number of total particles            
-nparticles =  10000 
+nparticles = 100000 
 print(""" ###########################
    WAHNSTROM BINARY SYSTEM 
    Num: {0:9d}
@@ -108,12 +108,9 @@ tau0 = ((m0/amu*1.661*10**(-27))*(sigma1/angstrom*10**-10)**2/(epsilon1/kilojoul
 f0 = m0*l0/(tau0**2)
 e0 = epsilon1
 print(temp0, epsilon1, tau0)
-print("Target temperature:")
 Tstar = float(temp)
-print(Tstar)
-print(e0/joule/AVOGADRO_CONSTANT_NA)
+print("Target temperature:", Tstar)
 kBT = kB * Tstar * kelvin * AVOGADRO_CONSTANT_NA / (kilojoule/mole) 
-print(kBT)
 
 reduced_density = 0.750 # reduced density rho*sigma^3
 temperature = Tstar * kelvin # temperature
@@ -125,7 +122,7 @@ timestep = 2.0 * femtosecond # integrator timestep
 # =============================================================================
 volume = (n1*sigma1**3+n2*sigma2**3)/reduced_density
 box_edge = volume**(1.0/3.0)
-cutoff = min(box_edge*0.49, 3.0*sigma1) # Compute cutoff
+cutoff = min(box_edge*0.49, 2.50*sigma1) # Compute cutoff
 print("sigma1, sigma2, box_edge, cutoff")
 print(sigma1, sigma2, box_edge, cutoff)
 
@@ -190,7 +187,7 @@ simulation.reporters.append(StateDataReporter(stdout, 1000, time=True, step=True
 simulation.context.setPositions(positions)
 
 print('minimizing...')
-for attmpt in range(100):
+for attmpt in range(1000):
     state = simulation.context.getState(getEnergy=True)
     energyval = state.getPotentialEnergy()
     print('attempt {0:6d}:'.format(attmpt))
@@ -201,7 +198,7 @@ for attmpt in range(100):
     forces = simulation.context.getState(getForces=True).getForces(asNumpy=True) / (kilojoule/mole/nanometers) 
     force_max = np.amax(forces)
     print('Fmax: {0:8.5e} (kJ/mol/nm)'.format(force_max))
-    if force_max <= 200.0e0:
+    if force_max <= 500.0e0:
         break
     else:
         mdh5_.close()
@@ -231,9 +228,6 @@ simulation.reporters.append(StateDataReporter(stdout, recstep, time=True, step=T
 
 # Initiate from last set of positions.
 simulation.context.setPositions(positions)
-state = simulation.context.getState(getEnergy=True)
-energyval = state.getPotentialEnergy()
-print('before:', energyval)
 # Equilibrate.
 print("equilibrating...")
 simulation.step(nequil_steps)
@@ -281,6 +275,7 @@ for it in range(nsample_steps/recstep):
     local_vorticity = np.zeros((3,  rN, rN,rN))
     local_S = np.zeros((3, 3, rN, rN, rN))
     for t in range(recstep):
+        print('t_atom:', t)
         simulation.step(1)
         pos = simulation.context.getState(getPositions=True).getPositions(asNumpy =True) / nanometers
         vel = simulation.context.getState(getVelocities=True).getVelocities(asNumpy =True) / (nanometers/picoseconds)
