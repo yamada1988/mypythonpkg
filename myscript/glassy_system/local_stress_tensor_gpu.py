@@ -260,9 +260,9 @@ masses = np.array([system.getParticleMass(indx)/amu  for indx in range(nparticle
 for it in range(nsample_steps/fhstep):
     print('it:',it)
     time_ = (it+1)*fhstep 
-    lg = cp.zeros((3,rN,rN,rN))
-    ls0k = cp.zeros((3,3,rN,rN,rN))
-    lsv = cp.zeros((3,3,rN,rN,rN))
+    lg = np.zeros((3,rN,rN,rN))
+    ls0k = np.zeros((3,3,rN,rN,rN))
+    lsv = np.zeros((3,3,rN,rN,rN))
     local_mass = 0.0e0
     local_g = 0.0e0
     local_v = 0.0e0
@@ -272,14 +272,14 @@ for it in range(nsample_steps/fhstep):
     for t in range(fhstep/atmstep):
         print('t_atom:', t)
         simulation.step(atmstep)
-        pos = cp.asarray(simulation.context.getState(getPositions=True).getPositions(asNumpy =True) / nanometers)
-        vel = cp.asarray(simulation.context.getState(getVelocities=True).getVelocities(asNumpy =True) / (nanometers/picoseconds))
-        frc = cp.asarray(simulation.context.getState(getForces=True).getForces(asNumpy =True)   / (kilojoule/mole/nanometers))
-        box = cp.asarray(simulation.context.getState().getPeriodicBoxVectors(asNumpy =True) / nanometers)
+        pos = simulation.context.getState(getPositions=True).getPositions(asNumpy =True) / nanometers)\
+        vel = simulation.context.getState(getVelocities=True).getVelocities(asNumpy =True) / (nanometers/picoseconds)
+        frc = simulation.context.getState(getForces=True).getForces(asNumpy =True)   / (kilojoule/mole/nanometers)
+        box = simulation.context.getState().getPeriodicBoxVectors(asNumpy =True) / nanometers
         L = box[0,0]
         # unset PBC 
-        pos -= cp.trunc(pos/L)*L
-        pos += cp.round((0.50e0*L-pos)/L)*L
+        pos -= np.trunc(pos/L)*L
+        pos += np.round((0.50e0*L-pos)/L)*L
 
         # grid parameters
         r_min = 0.0e0 
