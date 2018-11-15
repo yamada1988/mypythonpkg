@@ -9,7 +9,6 @@
 #
 # np - Scientific computing package - http://np.scipy.org
 # h5py - Pythonic interface to the HDF5 binary data format - https://www.h5py.org
-# cp - Scientific computing package (For GPGPU user) - http://cupy.chainer.org
 #
 # REFERENCES
 #
@@ -273,7 +272,7 @@ for it in range(nsample_steps/fhstep):
     for t in range(fhstep/atmstep):
         print('t_atom:', t)
         simulation.step(atmstep)
-        pos = simulation.context.getState(getPositions=True).getPositions(asNumpy =True) / nanometers)\
+        pos = simulation.context.getState(getPositions=True).getPositions(asNumpy =True) / nanometers
         vel = simulation.context.getState(getVelocities=True).getVelocities(asNumpy =True) / (nanometers/picoseconds)
         frc = simulation.context.getState(getForces=True).getForces(asNumpy =True)   / (kilojoule/mole/nanometers)
         box = simulation.context.getState().getPeriodicBoxVectors(asNumpy =True) / nanometers
