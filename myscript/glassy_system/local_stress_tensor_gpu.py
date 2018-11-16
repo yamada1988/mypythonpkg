@@ -58,7 +58,7 @@ def write_pdb(filename, atoms, coordinates, box, mode="w"):
             
 
 # number of total particles            
-nparticles = 500000 
+nparticles =   50000 
 print(""" ###########################
    WAHNSTROM BINARY SYSTEM 
    Num: {0:9d}
@@ -90,7 +90,7 @@ epsilon2 = 0.994 * kilojoule/mole# Lennard-Jones well-depth
 charge2 = 0.0e0 * elementary_charge # argon model has no charge
 
 # Steps
-nequil_steps  = 50000 # number of dynamics steps for equilibration
+nequil_steps  =  5000 # number of dynamics steps for equilibration
 nsample_steps = 50000 # number of dynamics steps for sampling
 rN = 32
 
@@ -198,7 +198,7 @@ for attmpt in range(1000):
     forces = simulation.context.getState(getForces=True).getForces(asNumpy=True) / (kilojoule/mole/nanometers) 
     force_max = np.amax(forces)
     print('Fmax: {0:8.5e} (kJ/mol/nm)'.format(force_max))
-    if force_max <= 500.0e0:
+    if force_max <= 1000.0e0:
         break
     else:
         mdh5_.close()
@@ -213,9 +213,9 @@ write_pdb(pdbf, atoms, pos, pbcbox)
 pdb_ = PDBFile(pdbf)
 system.setDefaultPeriodicBoxVectors(Vec3(box_edge, 0, 0), Vec3(0, box_edge, 0), Vec3(0, 0, box_edge))
 # Create Integrator and Context.
-recstep = 100
+recstep =  50
 fhstep  = 500
-atmstep =  10
+atmstep =   5
 t_ratio = fhstep/atmstep
 logfile = 'MD/log0001_{0:03d}.txt'.format(int(temp))
 integrator = LangevinIntegrator(temperature, collision_rate, timestep)
@@ -260,6 +260,7 @@ masses = np.array([system.getParticleMass(indx)/amu  for indx in range(nparticle
 for it in range(nsample_steps/fhstep):
     print('it:',it)
     time_ = (it+1)*fhstep 
+    lm = np.zeros((rN,rN,rN))
     lg = np.zeros((3,rN,rN,rN))
     ls0k = np.zeros((3,3,rN,rN,rN))
     lsv = np.zeros((3,3,rN,rN,rN))
@@ -270,7 +271,6 @@ for it in range(nsample_steps/fhstep):
     local_sigma0k = 0.0e0
     local_sigmav = 0.0e0
     for t in range(fhstep/atmstep):
-        print('t_atom:', t)
         simulation.step(atmstep)
         pos = simulation.context.getState(getPositions=True).getPositions(asNumpy =True) / nanometers
         vel = simulation.context.getState(getVelocities=True).getVelocities(asNumpy =True) / (nanometers/picoseconds)
@@ -291,7 +291,7 @@ for it in range(nsample_steps/fhstep):
             rax = np.array([r_, r_, r_])
         # calculate rho, g, v, sigma_ab, tau_ab, S_ab, eta as local variables
         w = cp.asarray(masses, dtype=np.float32)
-        lm = cp.asarray(lm, dtype=np.float32)
+        lm = cp.zeros((rN,rN,rN), dtype=cp.float32)
         r0 = cp.asarray(pos[:,0]/dr, dtype=cp.int32)
         r1 = cp.asarray(pos[:,1]/dr, dtype=cp.int32)
         r2 = cp.asarray(pos[:,2]/dr, dtype=cp.int32)
@@ -306,9 +306,10 @@ for it in range(nsample_steps/fhstep):
         lm = cp.asnumpy(lm)
         lm /= dV
         local_mass += lm
+        del lm
 
         w = cp.asarray(masses*vel.T, dtype=np.float32)
-        lg = cp.asarray(lg, dtype=cp.float32)
+        lg = cp.zeros((3,rN,rN,rN), dtype=cp.float32)
         cp.ElementwiseKernel(
             'int32 r0, int32 r1, int32 r2, raw float32 w',
             'raw float32 lg',
@@ -324,11 +325,12 @@ for it in range(nsample_steps/fhstep):
 
         lg /= dV
         local_g += lg
+        del lg
 
         dum = masses*vel.T
         s = dum.T[:,np.newaxis,:]*vel[:,:,np.newaxis]
         w = cp.asarray(s, dtype=cp.float32)
-        ls0k = cp.asarray(ls0k, dtype=cp.float32)
+        ls0k = cp.zeros((3,3,rN,rN,rN), dtype=cp.float32)
         cp.ElementwiseKernel(
             'int32 r0, int32 r1, int32 r2, raw float32 w',
             'raw float32 ls0k',
@@ -343,11 +345,12 @@ for it in range(nsample_steps/fhstep):
             '''
             )(r0,r1,r2,w,ls0k)
         ls0k = cp.asnumpy(ls0k) /dV
-        local_sigmak += ls0k
+        local_sigma0k += ls0k
+        del ls0k   
 
         dum = pos[:,np.newaxis,:]*frc[:,:,np.newaxis]
         w = cp.asarray(dum, dtype=cp.float32)
-        lsv = cp.asarray(lsv, dtype=cp.float32)
+        lsv = cp.zeros((3,3,rN,rN,rN), dtype=cp.float32)
         cp.ElementwiseKernel(
             'int32 r0, int32 r1, int32 r2, raw float32 w',
             'raw float32 lsv',
@@ -363,7 +366,8 @@ for it in range(nsample_steps/fhstep):
             )(r0,r1,r2,w,lsv)
         lsv = cp.asnumpy(lsv) /dV
         local_sigmav += lsv
- 
+        del lsv 
+
     # Time average
     local_mass /= t_ratio
     local_g /= t_ratio
