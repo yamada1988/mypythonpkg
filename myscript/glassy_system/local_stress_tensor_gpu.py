@@ -9,6 +9,7 @@
 #
 # np - Scientific computing package - http://np.scipy.org
 # h5py - Pythonic interface to the HDF5 binary data format - https://www.h5py.org
+# cp - Scientific computing package for GPGPU - https://cupy.chainer.org
 #
 # REFERENCES
 #
