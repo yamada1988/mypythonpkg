@@ -9,7 +9,6 @@
 #
 # np - Scientific computing package - http://np.scipy.org
 # h5py - Pythonic interface to the HDF5 binary data format - https://www.h5py.org
-# cp - Scientific computing package for GPGPU - https://cupy.chainer.org
 #
 # REFERENCES
 #
@@ -93,7 +92,7 @@ charge2 = 0.0e0 * elementary_charge # argon model has no charge
 # Steps
 nequil_steps  =  5000 # number of dynamics steps for equilibration
 nsample_steps = 50000 # number of dynamics steps for sampling
-rN = 32
+rN = 16
 
 # temperature
 args = sys.argv
@@ -216,7 +215,7 @@ system.setDefaultPeriodicBoxVectors(Vec3(box_edge, 0, 0), Vec3(0, box_edge, 0), 
 # Create Integrator and Context.
 recstep =  50
 fhstep  = 500
-atmstep =   5
+atmstep =  10
 t_ratio = fhstep/atmstep
 logfile = 'MD/log0001_{0:03d}.txt'.format(int(temp))
 integrator = LangevinIntegrator(temperature, collision_rate, timestep)
@@ -251,11 +250,11 @@ with h5py.File('MD/local0001_{0:03d}.h5'.format(int(temp)), 'w') as f:
     for k,v in units_.items():
         f['Units'].create_dataset(k, data=v)
     f.create_dataset('dt_atom', data=dt_atom)
-    f.create_dataset('localMass', shape=(nsample_steps/recstep, rN, rN, rN))
-    f.create_dataset('localStressTensor', shape=(nsample_steps/recstep, 3, 3, rN, rN, rN))
-    f.create_dataset('localMomentum', shape=(nsample_steps/recstep, 3, rN, rN, rN))
+    f.create_dataset('localMass', shape=(nsample_steps/fhstep, rN, rN, rN))
+    f.create_dataset('localStressTensor', shape=(nsample_steps/fhstep, 3, 3, rN, rN, rN))
+    f.create_dataset('localMomentum', shape=(nsample_steps/fhstep, 3, rN, rN, rN))
     f.create_dataset('MeshGrid', shape=(3, rN+1))
-    f.create_dataset('time', shape=(nsample_steps/recstep,))
+    f.create_dataset('time', shape=(nsample_steps/fhstep,))
 
 masses = np.array([system.getParticleMass(indx)/amu  for indx in range(nparticles)]) 
 for it in range(nsample_steps/fhstep):
@@ -263,14 +262,12 @@ for it in range(nsample_steps/fhstep):
     time_ = (it+1)*fhstep 
     lm = np.zeros((rN,rN,rN))
     lg = np.zeros((3,rN,rN,rN))
-    ls0k = np.zeros((3,3,rN,rN,rN))
-    lsv = np.zeros((3,3,rN,rN,rN))
     local_mass = 0.0e0
     local_g = 0.0e0
     local_v = 0.0e0
     local_sigma = 0.0e0
-    local_sigma0k = 0.0e0
-    local_sigmav = 0.0e0
+    local_sigma0k = np.zeros((3,3,rN,rN,rN))
+    local_sigmav = np.zeros((3,3,rN,rN,rN))
     for t in range(fhstep/atmstep):
         simulation.step(atmstep)
         pos = simulation.context.getState(getPositions=True).getPositions(asNumpy =True) / nanometers
@@ -324,50 +321,43 @@ for it in range(nsample_steps/fhstep):
             )(r0,r1,r2,w,lg)
         lg = cp.asnumpy(lg)
 
-        lg /= dV
-        local_g += lg
+        local_g += lg /dV
         del lg
 
-        dum = masses*vel.T
-        s = dum.T[:,np.newaxis,:]*vel[:,:,np.newaxis]
-        w = cp.asarray(s, dtype=cp.float32)
-        ls0k = cp.zeros((3,3,rN,rN,rN), dtype=cp.float32)
-        cp.ElementwiseKernel(
-            'int32 r0, int32 r1, int32 r2, raw float32 w',
-            'raw float32 ls0k',
-            '''
-            for (int j = 1; j < 4; j++) {
-              for (int k = 1; k < 4; k++){
-                int ind[] = {j,k,r0,r1,r2};
-                int ind2[] = {i,j,k};
-                atomicAdd(&ls0k[ind], w[ind2]);
-              }
-            }
-            '''
-            )(r0,r1,r2,w,ls0k)
-        ls0k = cp.asnumpy(ls0k) /dV
-        local_sigma0k += ls0k
-        del ls0k   
-
-        dum = pos[:,np.newaxis,:]*frc[:,:,np.newaxis]
-        w = cp.asarray(dum, dtype=cp.float32)
-        lsv = cp.zeros((3,3,rN,rN,rN), dtype=cp.float32)
-        cp.ElementwiseKernel(
-            'int32 r0, int32 r1, int32 r2, raw float32 w',
-            'raw float32 lsv',
-            '''
-            for (int j = 1; j < 4; j++) {
-              for (int k = 1; k < 4; k++){
-                int ind[] = {j,k,r0,r1,r2};
-                int ind2[] = {i,j,k};
+        for xa in range(3):
+            for xb in range(3):
+                sk = masses*vel.T[xa]*vel.T[xb]
+                ls0k = cp.zeros((rN,rN,rN), dtype=cp.float32)
+                w = cp.asarray(sk, dtype=cp.float32)
+                cp.ElementwiseKernel(
+                  'int32 r0, int32 r1, int32 r2, raw float32 w',
+                  'raw float32 ls0k',
+                  '''
+                  int ind[] = {r0,r1,r2};
+                  int ind2[] = {i};
+                  atomicAdd(&ls0k[ind], w[ind2]);
+                  '''
+                 )(r0,r1,r2,w,ls0k)
+                ls0k = cp.asnumpy(ls0k)
+                local_sigma0k[xa][xb] += ls0k/dV
+                sv = pos.T[xa]*frc.T[xb]
+                w = cp.asarray(sv, dtype=cp.float32)
+                lsv = cp.zeros((rN,rN,rN), dtype=cp.float32)
+                cp.ElementwiseKernel(
+                'int32 r0, int32 r1, int32 r2, raw float32 w',
+                'raw float32 lsv',
+                '''
+                int ind[] = {r0,r1,r2};
+                int ind2[] = {i};
                 atomicAdd(&lsv[ind], w[ind2]);
-              }
-            }
-            '''
-            )(r0,r1,r2,w,lsv)
-        lsv = cp.asnumpy(lsv) /dV
-        local_sigmav += lsv
-        del lsv 
+                '''
+                )(r0,r1,r2,w,lsv)
+                lsv = cp.asnumpy(lsv)
+                local_sigmav[xa][xb] += lsv/dV
+                del ls0k
+                del lsv
+        local_sigma = local_sigma0k + local_sigmav
+
 
     # Time average
     local_mass /= t_ratio
