@@ -16,7 +16,7 @@ pos = np.random.rand(N,3)*L
 
 t0 = time.time()
 # meshid
-meshids = (pos/dx).astype(int)*meshfilter
+meshids = np.sum((pos/dx).astype(int)*meshfilter,axis=1)
 print('create meshid:',time.time()-t0)
 
 # get
