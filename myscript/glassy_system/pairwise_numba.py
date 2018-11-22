@@ -14,7 +14,7 @@ def pairwise(X, Y, D):
             d = 0.0
             for k in range(N):
                 tmp = X[i, k] - Y[j, k]
-                tmp -= int(tmp)
+                tmp -= int(tmp)*tmp
                 d += tmp * tmp
             D[i, j] = numpy.sqrt(d)
 
@@ -31,7 +31,7 @@ def pairwise_numba(X, Y, D):
             d = 0.0
             for k in range(N):
                 tmp = X[i, k] - Y[j, k]
-                tmp -= int(tmp)
+                tmp -= int(tmp)*tmp
                 d += tmp * tmp
             D[i, j] = numpy.sqrt(d)
 
@@ -47,7 +47,7 @@ def pairwise_numba2(X, Y, D):
             d = 0.0
             for k in range(N):
                 tmp = X[i, k] - Y[j, k]
-                tmp -= int(tmp)
+                tmp -= int(tmp)*tmp
                 d += tmp * tmp
             D[i, j] = numpy.sqrt(d)
 
