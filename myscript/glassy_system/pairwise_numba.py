@@ -55,24 +55,26 @@ def pairwise_numba2(X, Y, D):
 
 if __name__ == '__main__':
 
-    N = 32
+    N = 120
     t = time.time()
-    X = numpy.random.random((N, 3))
-    Y = numpy.random.random((32,3))
-    D = numpy.empty((N, 32))
-    pairwise(X, Y, D)
-    print "numba:", time.time() - t
-
-    N = 32
-    t = time.time()
-    X = numpy.random.random((N, 3))
-    Y = numpy.random.random((32,3))
-    D = numpy.empty((N, 32))
-    pairwise_numba(X, Y, D)
-    print "numba:", time.time() - t
+    for it in range(16**3):
+        X = numpy.random.random((N, 3))
+        Y = numpy.random.random((8,3))
+        D = numpy.empty((N, 8))
+        pairwise(X, Y, D)
+    print "vanilla:", time.time() - t
 
     t = time.time()
-    X = numpy.random.random((N, 3))
-    Y = numpy.random.random((32,3))
-    pairwise_numba2(X, Y, D)
+    for it in range(16**3):
+        X = numpy.random.random((N, 3))
+        Y = numpy.random.random((8,3))
+        D = numpy.empty((N, 8))
+        pairwise_numba(X, Y, D)
+    print "numba:", time.time() - t
+
+    t = time.time()
+    for it in range(16**3):
+        X = numpy.random.random((N, 3))
+        Y = numpy.random.random((8,3))
+        pairwise_numba2(X, Y, D)
     print "numba2:", time.time() - t
