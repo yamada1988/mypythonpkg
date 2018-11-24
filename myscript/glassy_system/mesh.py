@@ -5,9 +5,9 @@ import multiprocessing
 import itertools
 import time
 
-N = 10000
-rN = 12
-L =  12.0
+N = 16
+rN = 2
+L =  2.0
 dx = L/rN
 cutoff = 1.0
 n_mesh = rN**3
@@ -47,8 +47,11 @@ def calc_dist(vec1, vec2, i1, i2, L, cutoff, array1):
     N = vec1.shape[0]
     M = vec2.shape[0]
     l = 0
+    j0 = 0
     for i in range(N):
-        for j in range(M):
+        if i2 == 0:
+            j0 = i+1  # avoid double count in same grid
+        for j in range(j0,M):
             d = 0.0e0
             for k in range(3):
                 tmp = vec1[i,k] - vec2[j,k]
@@ -94,18 +97,15 @@ for mesh_ind in data:
     X = pos[address_list[mesh_ind]]
     for ipair, pair in enumerate(pairs[mesh_ind]):
         Y = pos[address_list[pair]]
-        #    print("="*28)
         D = calc_dist(X, Y, mesh_ind, ipair, L, cutoff, D)
-        #if mesh_ind > 170:
-        #    print("-"*32)
 
 print('calc distance:', time.time()-t3)
-#for id_, d_ in enumerate(D):
-#    print("=== id:",id_)
-#    print(address_list[id_])
-#    print(pairs[id_])
-#    print(d_)
-#    print(d_[np.nonzero(d_)])
+for id_, d_ in enumerate(D):
+    print("=== id:",id_)
+    print(address_list[id_])
+    print(pairs[id_])
+    print(d_[0])
+    print(d_[np.nonzero(d_)])
 
 
 
