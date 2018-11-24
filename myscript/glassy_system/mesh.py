@@ -5,9 +5,9 @@ import multiprocessing
 import itertools
 import time
 
-N = 16
-rN = 2
-L =  2.0
+N = 100
+rN = 3
+L =  3.0
 dx = L/rN
 cutoff = 1.0
 n_mesh = rN**3
@@ -55,7 +55,8 @@ def calc_dist(vec1, vec2, i1, i2, L, cutoff, array1):
             d = 0.0e0
             for k in range(3):
                 tmp = vec1[i,k] - vec2[j,k]
-                d += np.power((tmp-np.round(tmp/L)*L),2)
+                tmp -= np.round(tmp/L)*L
+                d += np.power(tmp,2)
             if d < cutoff:
                 array1[i1, i2, l] = np.sqrt(d)
             l += 1
@@ -93,13 +94,17 @@ print('create pair_list:',time.time()-t2)
 
 t3 = time.time()
 D = np.zeros((n_mesh, 8, 200), dtype=np.float64)
-for mesh_ind in data:
-    X = pos[address_list[mesh_ind]]
+for mesh_ind,address in enumerate(address_list):
+    X = pos[address]
     for ipair, pair in enumerate(pairs[mesh_ind]):
         Y = pos[address_list[pair]]
         D = calc_dist(X, Y, mesh_ind, ipair, L, cutoff, D)
 
 print('calc distance:', time.time()-t3)
+
+print('total:', time.time()-t0)
+import sys
+sys.exit()
 for id_, d_ in enumerate(D):
     print("=== id:",id_)
     print(address_list[id_])
