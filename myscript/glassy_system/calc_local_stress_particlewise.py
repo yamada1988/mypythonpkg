@@ -51,8 +51,8 @@ calc_stress = cp.ElementwiseKernel(
                for (int m=0; m<3; m++){
                  int ind_mesh1[5] = {r0[i], r1[i], r2[i], l, m};
                  int ind_mesh2[5] = {r0[j], r1[j], r2[j], l, m};
-                 atomicAdd(&stress[ind_mesh1], 0.50*f0*tmp[l]*tmp[m]);
-                 atomicAdd(&stress[ind_mesh2], -0.50*f0*tmp[l]*tmp[m]);
+                 atomicAdd(&stress[ind_mesh1], f0*tmp[l]*tmp[m]);
+                 atomicAdd(&stress[ind_mesh2], -f0*tmp[l]*tmp[m]);
                }
              }
            }
