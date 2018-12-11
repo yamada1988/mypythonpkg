@@ -191,7 +191,6 @@ class MDConductor:
                     self.properties = {'Precision': precision, 'DeviceIndex': self.multidevice}
             else:
                 self.properties = {'OpenCLPrecision': precision, 'DeviceIndex': deviceindex}
-
         print(self.properties)
 
     def preparation(self, sysdir='SYS/', mddir='MD/'):
@@ -440,10 +439,17 @@ class MDConductor:
 
         print('Minimizing...')
         empdb = sysdir + emname + '.pdb'
-        simulation.minimizeEnergy(maxIterations=200000)
+        simtop = simulation.topology
+        simsys = simulation.system
+        simint = LangevinIntegrator(300, 1.0, 2.0) 
+        simpos = simulation.context.getState(getPositions=True).getPositions()
+        simulation_ = Simulation(simtop, simsys, simint, Platform.getPlatformByName('CPU'))
+        simulation_.context.setPositions(simpos)
+        
+        simulation_.minimizeEnergy(maxIterations=100000)
 
         print('Check Energy...')
-        state = simulation.context.getState(getEnergy=True)
+        state = simulation_.context.getState(getEnergy=True)
         energyval = state.getPotentialEnergy()
         print(energyval)
         eneval = energyval / (kilojoule/mole)
@@ -451,9 +457,10 @@ class MDConductor:
             sys.exit('Energy diverges at infinity.')
 
         print('Saving...')
-        positions = simulation.context.getState(getPositions=True).getPositions()
-        PDBFile.writeFile(simulation.topology, positions, open(empdb, 'w'))
+        positions = simulation_.context.getState(getPositions=True).getPositions()
+        PDBFile.writeFile(simulation_.topology, positions, open(empdb, 'w'))
 
+        simulation.context.setPositions(positions)
         return simulation
 
     def mdrun(self, simulation, ensname, index, mddir='MD/', sysdir='SYS/', 
@@ -550,7 +557,7 @@ class MDConductor:
                     f.write('CRYST1  {0:7.3f}  {0:7.3f}  {0:7.3f}  90.00  90.00  90.00 P 1           1\n'.format(10.0e0*pbcbox[0]))
                     f.write(self.anum[1]+'\n')
                     for i,line in enumerate(self.lines[:-2]):
-                        l = line[:30] + ' {0:7.3f} {1:7.3f} {2:7.3f}'.format(10.0e0*pos[i][0], 10.0e0*pos[i][1], 10.0e0*pos[i][2])
+                        l = line[:30] + '{0:8.3f}{1:8.3f}{2:8.3f}'.format(10.0e0*pos[i][0], 10.0e0*pos[i][1], 10.0e0*pos[i][2])
                         l += line[56:]+'\n'
                         f.write(l)
                     f.write('TER\nENDMDL')
