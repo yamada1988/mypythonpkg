@@ -64,6 +64,7 @@ epsilon2 = 0.994 * kilojoule/mole# Lennard-Jones well-depth
 charge2 = 0.0e0 * elementary_charge # argon model has no charge
 sigma = cp.asarray(np.concatenate([(sigma1/nanometers)*np.ones(n1), (sigma2/nanometers)*np.ones(n2)]), dtype=np.float32)
 epsilon = epsilon1/ (kilojoule/mole)
+print('ep:',epsilon)
 masses = np.concatenate([(mass1/amu)*np.ones(n1), (mass2/amu)*np.ones(n2)])
 
 # temperature
@@ -84,12 +85,12 @@ temperature = Tstar * kelvin # temperature
 collision_rate = 2.0 / picosecond # collision rate for Langevin thermostat
 timestep = 2.0 * femtosecond # integrator timestep
 
-cutoff = 2.50*sigma1 /nanometers # Compute cutoff
+cutoff = 1.0 # Compute cutoff
 print("sigma1, sigma2, cutoff")
 print(sigma1, sigma2, cutoff)
-lmax = 20
+lmax = 30
 
-fhstep  =  10
+fhstep  =  20
 atmstep =   1
 total_steps = len(infh['coordinates'])
 t_ratio = fhstep/atmstep
@@ -136,6 +137,7 @@ for it in range(total_steps/fhstep):
         vel = infh['velocities'][t_]
         box = infh['cell_lengths']
         L = box[0,0]
+
         rN = int(L/cutoff)
         # unset PBC 
         pos -= np.trunc(pos/L)*L
@@ -232,7 +234,16 @@ for it in range(total_steps/fhstep):
               operation=\
               '''
               int n_mesh = _ind.size();
-              int pair_index[8] = {i, (i+1)%n_mesh, (i+rN)%n_mesh, (i+rN+1)%n_mesh, (i+rN*rN)%n_mesh, (i+1+rN*rN)%n_mesh, (i+rN+rN*rN)%n_mesh, (i+1+rN+rN*rN)%n_mesh};
+              int pair_index[27] = {0.0};
+              int i_count = 0;
+              for (int ix0 = -1; ix0<2; ix0++){
+                for (int iy0 = -1; iy0<2; iy0++){
+                  for (int iz0 = -1; iz0<2; iz0++){
+                    pair_index[i_count] = (i + rN*rN*iz0 +rN*iy0 + ix0)%n_mesh;
+                    i_count += 1;
+                  }
+                }
+              }
               for (int p1=0; p1<lmax; p1++){
                 int ip = address_list[lmax*i+p1];
                 if ( ip < 0 )
@@ -242,26 +253,22 @@ for it in range(total_steps/fhstep):
                 else 
                 {
                   for (int p2=0; p2<lmax; p2++){
-                    for (int j=0; j<8; j++){
+                    for (int j=0; j<27; j++){
                       int jp = address_list[lmax*pair_index[j]+p2];
-                      if ( jp<0 || ip == jp )
+                      if ( jp<0 || jp <= ip )
                       {
                       break;
                       }
                       else
                       {
                       double tmp[3] = {0.0};
-                      double tmp2[3] = {0.0};
                       double diff = 0.0;
-                      double diff2 = 0.0;
                       for (int m = 0; m<3; m++){
                         tmp[m] = pos[3*ip+m] - pos[3*jp+m];
-                        tmp2[m] = tmp[m] + L*int(tmp[m]/(0.50*L));
-                        diff += powf(tmp2[m],2); 
-                        diff2 += powf(tmp[m],2); 
+                        tmp[m] += L*int(tmp[m]/(0.50*L));
+                        diff += powf(tmp[m],2); 
                       }
                       double r = sqrt(diff);
-                      double r2 = sqrt(diff2);
                       if ( r > cutoff)
                       {
                       continue;
@@ -269,13 +276,19 @@ for it in range(total_steps/fhstep):
                       else
                       {
                         double r6 = powf(0.50*(sigma[ip]+sigma[jp])/r, 6);
-                        double f0 = 24.0*epsilon*r6*(2*r6-1.0)/r;
+                        double f[3] = {0.0};
+                        for (int ifx=0; ifx<3; ifx++){
+                          f[ifx] = 24.0*epsilon*r6*(2*r6-1.0)/r*tmp[ifx]/r;
+                          if ( f[ifx] > 50.0){
+                            printf("%d, %f,   %f   :",i,  r/(0.50*(sigma[ip]+sigma[jp])), f[ifx]);
+                          }
+                        }
                         for (int xa=0; xa<3; xa++){
                           for (int xb=0; xb<3; xb++){
                             int ind_mesh1[3] = {i, xa, xb};
                             int ind_mesh2[3] = {pair_index[j], xa, xb};
-                            atomicAdd(&stress[ind_mesh1], f0*tmp[xa]*tmp[xb]/r);
-                            atomicAdd(&stress[ind_mesh2], f0*tmp[xa]*tmp[xb]/r);
+                            atomicAdd(&stress[ind_mesh1], f[xa]*tmp[xb]);
+                            atomicAdd(&stress[ind_mesh2], f[xa]*tmp[xb]);
                           }  
                         }
                       }
@@ -285,7 +298,7 @@ for it in range(total_steps/fhstep):
                 }
               }
               ''',
-              name='calc_stress')(data, address_list, lmax, sigma, cutoff, epsilon, L, pos, rN, stress)
+              name='calc_stress')(data, address_list, lmax, sigma, cutoff, L, epsilon, pos, rN, stress)
         stress = cp.asnumpy(stress.reshape(rN, rN, rN, 3, 3))
         local_sigmav += stress/dV
         del stress
