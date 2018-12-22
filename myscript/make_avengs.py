@@ -7,13 +7,13 @@ args = sys.argv
 Nmin = int(args[1])
 Nmax = int(args[2])
 
-Nblock = 5
+Nblock = 10
 
 Nst = int(args[3]) 
 Ned = int(args[4])
 Ni = int(args[5])
 
-Nconf = Ned - Nst + 1
+Nconf = 0
 inpf_0 = 'MELT_{0:03d}/ERmod_0001/soln/engsln.01'.format(Nmin)
 with open(inpf_0, 'rt') as f:
     ene_coord = [line.split()[0] for line in f]
@@ -21,16 +21,29 @@ with open(inpf_0, 'rt') as f:
 num_lines = len(ene_coord)
 for j in range(Nmax, Nmin-1, -1):
     inpdir = 'MELT_{0:03d}/'.format(j)
-    esln = [[0 for i in range(Nblock+1)] for j in range(Nconf)]
-    esln_ave = [ 0 for i in range(Nblock+1)]
     for il,l in enumerate(range(Nst, Ned+1)):
         for k in range(1, Nblock+1):
             inpf_sln = inpdir + 'ERmod_{0:04d}/soln/engsln.{1:02d}'.format(l,k)
-            print(inpf_sln)
-            with open(inpf_sln) as f:
-                esln[il][k-1] = [line.split() for line in f]
-#                print(esln[l-1][k-1])
-                esln_ave[k-1] = ['' for line in range(len(ene_coord))]
+        if os.path.isfile(inpf_sln):
+            Nconf += 1
+        else:
+            print('missing:', inpf_sln)
+    print('MELT_{0:03d}'.format(j), 'Nconf:', Nconf)
+
+    esln = [[0 for i in range(Nblock+1)] for j in range(Nconf)]
+    esln_ave = [ 0 for i in range(Nblock+1)]
+    il = -1
+    for l in range(Nst, Ned+1):
+        check_sln = inpdir + 'ERmod_{0:04d}/soln/engsln.{1:02d}'.format(l, Nblock)
+        if os.path.isfile(check_sln):
+            il += 1
+            for k in range(1, Nblock+1):
+                inpf_sln = inpdir + 'ERmod_{0:04d}/soln/engsln.{1:02d}'.format(l,k)
+                print(inpf_sln)
+                with open(inpf_sln) as f:
+                    esln[il][k-1] = [line.split() for line in f]
+#                    print(esln[l-1][k-1])
+                    esln_ave[k-1] = ['' for line in range(len(ene_coord))]
 
 #    print(esln[0])
     sum_ = [[0 for line in range(num_lines)] for line in range(Nblock)]
@@ -39,7 +52,7 @@ for j in range(Nmax, Nmin-1, -1):
     for ie in range(num_lines):
         for k in range(1, Nblock+1):
             sum_[k-1][ie] = 0.0e0
-            for il,l in enumerate(range(Nst, Ned+1)):
+            for il in range(Nconf):
 #                print('l:', l, 'k:', k)
 #                print(esln[il][k-1][ie][2])
                 sum_[k-1][ie] += float(esln[il][k-1][ie][2]) 
@@ -63,12 +76,15 @@ for j in range(Nmax, Nmin-1, -1):
 
     w_slns =[0.0e0 for line in range(Nconf)]
     w_sln = [0.0e0 for line in range(Nblock)]
-    for il,l in enumerate(range(Nst, Ned+1)):
+    il = 0
+    for l in range(Nst, Ned+1):
         w_slnf = inpdir + 'ERmod_{0:04d}/soln/weight_soln'.format(l)
-        with open(w_slnf, 'rt') as f:
-            w_slns[il] = [float(line.split()[1]) for line in f]
-        for k in range(1, Nblock+1):
-            w_sln[k-1] += w_slns[il][k-1]
+        if os.path.isfile(w_slnf):
+            with open(w_slnf, 'rt') as f:
+                w_slns[il] = [float(line.split()[1]) for line in f]
+            for k in range(1, Nblock+1):
+                w_sln[k-1] += w_slns[il][k-1]
+            il += 1
     w_sln = list(map(lambda x: x/Nconf, w_sln))
    # print(w_sln)
     outf = outd1 + 'weight_soln'
@@ -79,12 +95,15 @@ for j in range(Nmax, Nmin-1, -1):
 
     aveuvs = [0.0e0 for line in range(Nconf)]
     aveuv = [0.0e0 for line in range(Nblock)]
-    for il,l in enumerate(range(Nst, Ned+1)):
+    il = 0
+    for l in range(Nst, Ned+1):
         aveuvf = inpdir + 'ERmod_{0:04d}/soln/aveuv.tt'.format(l)
-        with open(aveuvf, 'rt') as f:
-            aveuvs[il] = [float(line.split()[1]) for line in f]
-        for k in range(1, Nblock+1):
-            aveuv[k-1] += aveuvs[il][k-1]
+        if os.path.isfile(aveuvf):
+            with open(aveuvf, 'rt') as f:
+                aveuvs[il] = [float(line.split()[1]) for line in f]
+            for k in range(1, Nblock+1):
+                aveuv[k-1] += aveuvs[il][k-1]
+            il += 1
     aveuv = list(map(lambda x: x/Nconf, aveuv))
     
     outf = outd1 + 'aveuv.tt'
