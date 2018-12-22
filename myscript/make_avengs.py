@@ -86,7 +86,7 @@ for j in range(Nmax, Nmin-1, -1):
                 w_sln[k-1] += w_slns[il][k-1]
             il += 1
     w_sln = list(map(lambda x: x/Nconf, w_sln))
-   # print(w_sln)
+   # print(w_sln) 
     outf = outd1 + 'weight_soln'
     with open(outf, 'wt') as f:
         for k in range(1, Nblock+1):
