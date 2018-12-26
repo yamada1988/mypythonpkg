@@ -33,6 +33,7 @@ with open(outf, 'a+') as f:
         for j in range(i+1, Nchain+1):
             dn = acceptor[acceptor['resSeq']==j]
             pos_dn = np.array(dn[['x','y','z']])
+            atm_dn = np.array(dn['serial'])
             #print(j, pos_dn)
             for ipa, pac in enumerate(pos_ac):
                 for ipd, pdn in enumerate(pos_dn):
@@ -42,5 +43,5 @@ with open(outf, 'a+') as f:
                     d = np.sqrt(np.sum(dr**2))
                     if d <= 0.30:
                         print('molpair: {0:4d}\t{1:4d}'.format(i,j))
-                        print('atmpair: {0:4d}\t{1:4d}'.format(atm_ac[ipa], atm_ac[ipd]), d)
-                        f.write('{0:2d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:6.5f}\n'.format(i, j, atm_ac[ipa], atm_ac[ipd], d))
+                        print('atmpair: {0:4d}\t{1:4d}'.format(atm_ac[ipa], atm_dn[ipd]), d)
+                        f.write('{0:2d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:6.5f}\n'.format(i, j, atm_ac[ipa], atm_dn[ipd], d))
