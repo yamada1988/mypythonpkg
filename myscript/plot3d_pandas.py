@@ -5,7 +5,7 @@ import mdtraj as md
 import numpy as np
 import sys
 
-sns.palplot(sns.color_palette("hls", 50))
+sns.set_palette("hls", 50)
 
 index_ = int(sys.argv[1])
 
@@ -41,11 +41,11 @@ xs = ['' for i in range(50)]
 ys = ['' for i in range(50)]
 zs = ['' for i in range(50)]
 
-for i in range(1, 20):
+for i in range(1, 50+1):
     xs[i-1] = backbones[(backbones['resSeq']==i)]['x'].values
     ys[i-1] = backbones[(backbones['resSeq']==i)]['y'].values
     zs[i-1] = backbones[(backbones['resSeq']==i)]['z'].values
-    ax.plot(xs[i-1], ys[i-1], zs[i-1], "o", ms=3)
+    ax.plot(xs[i-1], ys[i-1], zs[i-1], "o-", ms=1)
 
 
 pyplot.show()
