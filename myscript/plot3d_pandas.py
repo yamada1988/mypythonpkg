@@ -1,5 +1,6 @@
 from matplotlib import pyplot
 from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.animation as animation
 import seaborn as sns
 import mdtraj as md
 import numpy as np
@@ -14,7 +15,10 @@ d_hbond = 0.240 # (nm)
 
 # Input Setting
 index_ = int(sys.argv[1]) 
-fname = 'npt_par{0:04d}_nopbc.gro'.format(index_)
+frame_ = int(sys.argv[2])
+print('index:',index_)
+
+fname = 'npt_par{0:04d}_nopbc{1:05d}.gro'.format(index_, frame_)
 t = md.load(fname)
 top = t.topology
 df, b = top.to_dataframe()
@@ -25,18 +29,18 @@ df['x'] = pos[0,:,0]
 df['y'] = pos[0,:,1]
 df['z'] = pos[0,:,2]
 
-print(df)
+#print(df)
 tmp = df[df['resName']=='PVA0c']
 backbones = tmp[tmp['name']=='c3']
 acceptor = df[df['name'] == 'oh']
 donor = df[df['name'] == 'ho']
 
-print(acceptor)
-print(donor)
+#print(acceptor)
+#print(donor)
 
 # Output Setting
 sns.set_palette("hls", Nchain)
-hbondf = 'hbonds_par{0:04d}_chain.dat'.format(index_)
+hbondf = 'hbonds_par{0:04d}_chain{1:05d}.dat'.format(index_, frame_)
 
 # Hydrogen bonding between inter-chain
 with open(hbondf, 'rt') as f:
@@ -68,7 +72,11 @@ for i in range(1, Nchain+1):
     ax.plot(xs[i-1], ys[i-1], zs[i-1], "o-", ms=0.3)
 
 # Plot hydrogen bonding
-print(x_ac_bonded)
-ax.plot(x_ac_bonded, y_ac_bonded, z_ac_bonded, "o", color="k", ms=4)
+#print(x_ac_bonded)
+ax.plot(x_ac_bonded, y_ac_bonded, z_ac_bonded, "*", color="k", ms=6)
+ax.text2D(0.05, 0.95, "{0:4.1f} ps".format(float(frame_)), transform=ax.transAxes)
 
-pyplot.show()
+ofname = 'npt_par{0:04d}_nopbc{1:05d}.eps'.format(index_, frame_)
+pyplot.savefig(ofname)
+
+#pyplot.show()
