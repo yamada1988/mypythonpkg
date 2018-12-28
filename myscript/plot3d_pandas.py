@@ -5,10 +5,15 @@ import mdtraj as md
 import numpy as np
 import sys
 
-sns.set_palette("hls", 50)
+# Parameters
 
-index_ = int(sys.argv[1])
+Nmol = 1611
+Nchain = 50
+Nstart = 4654
+d_hbond = 0.240 # (nm)
 
+# Input Setting
+index_ = int(sys.argv[1]) 
 fname = 'npt_par{0:04d}_nopbc.gro'.format(index_)
 t = md.load(fname)
 top = t.topology
@@ -21,11 +26,26 @@ df['y'] = pos[0,:,1]
 df['z'] = pos[0,:,2]
 
 print(df)
-
 tmp = df[df['resName']=='PVA0c']
 backbones = tmp[tmp['name']=='c3']
+acceptor = df[df['name'] == 'oh']
+donor = df[df['name'] == 'ho']
 
-print(backbones)
+print(acceptor)
+print(donor)
+
+# Output Setting
+sns.set_palette("hls", Nchain)
+hbondf = 'hbonds_par{0:04d}_chain.dat'.format(index_)
+
+# Hydrogen bonding between inter-chain
+with open(hbondf, 'rt') as f:
+    pos_ac_bonded = [[float(line.split()[5]), float(line.split()[6]), float(line.split()[7])] for line in f if not line.startswith('#')]
+
+x_ac_bonded = list(zip(*pos_ac_bonded)[0])
+y_ac_bonded = list(zip(*pos_ac_bonded)[1]) 
+z_ac_bonded = list(zip(*pos_ac_bonded)[2])
+# Plot backbones
 fig = pyplot.figure()
 ax = Axes3D(fig)
 
@@ -37,15 +57,18 @@ ax.set_xlim(-3.0, 1.40*box)
 ax.set_ylim(-3.0, 1.40*box)
 ax.set_zlim(-3.0, 1.40*box)
 
-xs = ['' for i in range(50)]
-ys = ['' for i in range(50)]
-zs = ['' for i in range(50)]
+xs = ['' for i in range(Nchain)]
+ys = ['' for i in range(Nchain)]
+zs = ['' for i in range(Nchain)]
 
-for i in range(1, 50+1):
+for i in range(1, Nchain+1):
     xs[i-1] = backbones[(backbones['resSeq']==i)]['x'].values
     ys[i-1] = backbones[(backbones['resSeq']==i)]['y'].values
     zs[i-1] = backbones[(backbones['resSeq']==i)]['z'].values
-    ax.plot(xs[i-1], ys[i-1], zs[i-1], "o-", ms=1)
+    ax.plot(xs[i-1], ys[i-1], zs[i-1], "o-", ms=0.3)
 
+# Plot hydrogen bonding
+print(x_ac_bonded)
+ax.plot(x_ac_bonded, y_ac_bonded, z_ac_bonded, "o", color="k", ms=4)
 
 pyplot.show()
