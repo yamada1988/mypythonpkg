@@ -16,7 +16,7 @@ d_hbond = 0.240 # (nm)
 # Input Setting
 index_ = int(sys.argv[1]) 
 frame_ = int(sys.argv[2])
-print('index:',index_)
+print('frame:',frame_)
 
 fname = 'npt_par{0:04d}_nopbc{1:05d}.gro'.format(index_, frame_)
 t = md.load(fname)
