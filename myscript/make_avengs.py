@@ -7,7 +7,7 @@ args = sys.argv
 Nmin = int(args[1])
 Nmax = int(args[2])
 
-Nblock = 10
+Nblock = 5
 
 Nst = int(args[3]) 
 Ned = int(args[4])
@@ -86,7 +86,7 @@ for j in range(Nmax, Nmin-1, -1):
                 w_sln[k-1] += w_slns[il][k-1]
             il += 1
     w_sln = list(map(lambda x: x/Nconf, w_sln))
-   # print(w_sln) 
+   # print(w_sln)
     outf = outd1 + 'weight_soln'
     with open(outf, 'wt') as f:
         for k in range(1, Nblock+1):
@@ -111,3 +111,4 @@ for j in range(Nmax, Nmin-1, -1):
         for k in range(1, Nblock+1):
             str_ = '{0:d}\t{1:8.5f}\n'.format(k, aveuv[k-1])
             f.write(str_)
+
