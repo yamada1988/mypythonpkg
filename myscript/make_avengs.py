@@ -111,4 +111,3 @@ for j in range(Nmax, Nmin-1, -1):
         for k in range(1, Nblock+1):
             str_ = '{0:d}\t{1:8.5f}\n'.format(k, aveuv[k-1])
             f.write(str_)
-
