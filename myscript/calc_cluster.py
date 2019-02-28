@@ -16,11 +16,17 @@ print(colors)
 
 
 with open(fname, 'rt') as f:
-    crystalines = np.array([[float(line.split()[5]), float(line.split()[6]), float(line.split()[7])] for line in f if not line.startswith('#')])
+    crystalines = [[float(line.split()[5]), float(line.split()[6]), float(line.split()[7])] for line in f if not line.startswith('#')]
+    f.seek(0)
+    crystalines_02 = [[float(line.split()[8]), float(line.split()[9]), float(line.split()[10])] for line in f if not line.startswith('#')]
 
-print(crystalines)
+crystalines.extend(crystalines_02)
+crystalines = np.array(crystalines)
 pred = KMeans(n_clusters=num).fit_predict(crystalines)
 print(pred)
+
+for i in range(num):
+    print(i, list(pred).count(i))
 
  # Plot backbones
 fig = pyplot.figure(figsize=(12,8))
