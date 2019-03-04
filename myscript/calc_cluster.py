@@ -1,14 +1,16 @@
 import matplotlib
-matplotlib.use('Qt4Agg')
 from matplotlib import pyplot
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import seaborn as sns
+import pyclustering
+from pyclustering.cluster import xmeans
+from pyclustering.cluster import cluster_visualizer
 import numpy as np
-from sklearn.cluster import KMeans
+
 
 fname = 'hbonds_chain.dat'
-num = 32
+knum = 100
 box = 18.915
 colordict = matplotlib.colors.cnames
 colors =  list(colordict.keys())
@@ -22,37 +24,25 @@ with open(fname, 'rt') as f:
 
 crystalines.extend(crystalines_02)
 crystalines = np.array(crystalines)
-cls = KMeans(n_clusters=num)
-pred = cls.fit_predict(crystalines)
-print(pred)
-centers = cls.cluster_centers_
+data = crystalines
+init_center = pyclustering.cluster.xmeans.kmeans_plusplus_initializer(data, 3).initialize() # 初期値決定　今回は、初期クラスタ2です
+xm = pyclustering.cluster.xmeans.xmeans(data, init_center, kmax=128, ccore=False)
+xm.process() # クラスタリングします
 
-for i in range(num):
-    print(i, list(pred).count(i))
+clusters = xm.get_clusters()
+centers = xm.get_centers()
 
- # Plot backbones
-fig = pyplot.figure(figsize=(12,8))
-ax = Axes3D(fig)
-
-ax.set_xlabel("X-axis")
-ax.set_ylabel("Y-axis")
-ax.set_zlabel("Z-axis")
-
-ax.set_xlim(-0.0, 1.0*box)
-ax.set_ylim(-0.0, 1.0*box)
-ax.set_zlim(-0.0, 1.0*box)
-
-# Plot hydrogen bonding
-#print(x_ac_bonded)
-for i,c in enumerate(crystalines):
-    #print(i,c)
-    ax.scatter(c[0], c[1], c[2], marker='*', c=colors[pred[i]], edgecolors=colors[pred[i]], s=50)
-
-outf = 'center_bonds.dat'
+outf = 'center_hbonds.dat'
+ic = 1
 with open(outf, 'wt') as f:
-    f.write('# index\tx\ty\tz\n')
-    for j in range(num):
-        ax.scatter(centers[j, 0], centers[j, 1], centers[j,2], marker='*', c=colors[j], s=500, edgecolors='black')
-        f.write('{0:3d}\t{1:5.3f}\t{2:5.3f}\t{3:5.3f}\n'.format(j, centers[j,0], centers[j,1], centers[j,2]))
+    f.write('# index\tnum\tx\ty\tz\n')
+    for c in centers:
+        nc = len(clusters[ic-1])
+        f.write('{0:3d}\t{1:4d}\t{2:6.3f}\t{3:6.3f}\t{4:6.3f}\n'.format(ic, nc, c[0], c[1], c[2]))
+        ic += 1
 
-plt.show()
+# Visualize clustering results
+visualizer = cluster_visualizer()
+visualizer.append_clusters(clusters, data)
+visualizer.append_cluster(centers, None, marker='*', markersize = 100)
+visualizer.show()
