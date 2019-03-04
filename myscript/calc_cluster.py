@@ -8,8 +8,8 @@ import numpy as np
 from sklearn.cluster import KMeans
 
 fname = 'hbonds_chain.dat'
-num = 48
-box = 16.50
+num = 32
+box = 18.915
 colordict = matplotlib.colors.cnames
 colors =  list(colordict.keys())
 print(colors)
@@ -22,8 +22,10 @@ with open(fname, 'rt') as f:
 
 crystalines.extend(crystalines_02)
 crystalines = np.array(crystalines)
-pred = KMeans(n_clusters=num).fit_predict(crystalines)
+cls = KMeans(n_clusters=num)
+pred = cls.fit_predict(crystalines)
 print(pred)
+centers = cls.cluster_centers_
 
 for i in range(num):
     print(i, list(pred).count(i))
@@ -44,6 +46,10 @@ ax.set_zlim(-0.0, 1.0*box)
 #print(x_ac_bonded)
 for i,c in enumerate(crystalines):
     #print(i,c)
-    ax.scatter(c[0], c[1], c[2], marker="*", color=colors[pred[i]], s=10)
+    ax.scatter(c[0], c[1], c[2], marker='*', c=colors[pred[i]], edgecolors=colors[pred[i]], s=50)
+
+for j in range(num):
+    ax.scatter(centers[j, 0], centers[j, 1], centers[j,2], marker='*', c=colors[j], s=400, edgecolors='black')
+
 
 plt.show()
