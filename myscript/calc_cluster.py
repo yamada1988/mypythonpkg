@@ -48,8 +48,11 @@ for i,c in enumerate(crystalines):
     #print(i,c)
     ax.scatter(c[0], c[1], c[2], marker='*', c=colors[pred[i]], edgecolors=colors[pred[i]], s=50)
 
-for j in range(num):
-    ax.scatter(centers[j, 0], centers[j, 1], centers[j,2], marker='*', c=colors[j], s=400, edgecolors='black')
-
+outf = 'center_bonds.dat'
+with open(outf, 'wt') as f:
+    f.write('# index\tx\ty\tz\n')
+    for j in range(num):
+        ax.scatter(centers[j, 0], centers[j, 1], centers[j,2], marker='*', c=colors[j], s=500, edgecolors='black')
+        f.write('{0:3d}\t{1:5.3f}\t{2:5.3f}\t{3:5.3f}\n'.format(j, centers[j,0], centers[j,1], centers[j,2]))
 
 plt.show()
