@@ -1,0 +1,98 @@
+import shutil
+import sys
+import os
+
+#
+# average for refs
+#
+
+args = sys.argv
+
+Nmin = int(args[1])
+Nmax = int(args[2])
+
+Nblock = 5
+
+Nst = int(args[3]) 
+Ned = int(args[4])
+Ni = int(args[5])
+
+Nconf = 0
+inpf_0 = 'MELT_{0:03d}/ERmod_0001/refs/engsln.01'.format(Nmin)
+with open(inpf_0, 'rt') as f:
+    ene_coord = [line.split()[0] for line in f]
+
+num_lines = len(ene_coord)
+for j in range(Nmax, Nmin-1, -1):
+    inpdir = 'MELT_{0:03d}/'.format(j)
+    for il,l in enumerate(range(Nst, Ned+1)):
+        for k in range(1, Nblock+1):
+            inpf_sln = inpdir + 'ERmod_{0:04d}/refs/engsln.{1:02d}'.format(l,k)
+        if os.path.isfile(inpf_sln):
+            Nconf += 1
+        else:
+            print('missing:', inpf_sln)
+    print('MELT_{0:03d}'.format(j), 'Nconf:', Nconf)
+
+    esln = [[0 for i in range(Nblock+1)] for j in range(Nconf)]
+    esln_ave = [ 0 for i in range(Nblock+1)]
+    il = -1
+    for l in range(Nst, Ned+1):
+        check_sln = inpdir + 'ERmod_{0:04d}/refs/engsln.{1:02d}'.format(l, Nblock)
+        if os.path.isfile(check_sln):
+            il += 1
+            for k in range(1, Nblock+1):
+                inpf_sln = inpdir + 'ERmod_{0:04d}/refs/engsln.{1:02d}'.format(l,k)
+                print(inpf_sln)
+                with open(inpf_sln) as f:
+                    esln[il][k-1] = [line.split() for line in f]
+#                    print(esln[l-1][k-1])
+                    esln_ave[k-1] = ['' for line in range(len(ene_coord))]
+
+#    print(esln[0])
+    sum_ = [[0 for line in range(num_lines)] for line in range(Nblock)]
+    ave = [[0 for line in range(num_lines)] for line in range(Nblock)]
+    print('==========\n\n==========')
+    for ie in range(num_lines):
+        for k in range(1, Nblock+1):
+            sum_[k-1][ie] = 0.0e0
+            for il in range(Nconf):
+#                print('l:', l, 'k:', k)
+#                print(esln[il][k-1][ie][2])
+                sum_[k-1][ie] += float(esln[il][k-1][ie][2]) 
+                ave[k-1][ie] = sum_[k-1][ie]/ Nconf
+                
+            esln_ave[k-1][ie] = [ene_coord[ie], '1', ave[k-1][ie]]
+#            print(esln_ave[k-1][ie])
+    for k in range(1, Nblock+1):
+        outd0 = inpdir + 'aveERmod_{0:02d}/'.format(Ni)
+        outd1 = outd0 + 'refs/'
+        outf = outd1 + 'engref.{0:02d}'.format(k)
+        if not os.path.isdir(outd0):
+            os.mkdir(outd0)     
+        if not os.path.isdir(outd1):
+            os.mkdir(outd1) 
+        if os.path.isfile(outf):
+            shutil.move(outf, outf+'.bak')
+        with open(outf, 'a+') as f:
+            for ie in range(num_lines):
+                f.write(esln_ave[k-1][ie][0]+'\t'+esln_ave[k-1][ie][1]+'\t'+'{0:12.9E}'.format(esln_ave[k-1][ie][2])+'\n')
+
+    w_slns =[0.0e0 for line in range(Nconf)]
+    w_sln = [0.0e0 for line in range(Nblock)]
+    il = 0
+    for l in range(Nst, Ned+1):
+        w_slnf = inpdir + 'ERmod_{0:04d}/refs/weight_soln'.format(l)
+        if os.path.isfile(w_slnf):
+            with open(w_slnf, 'rt') as f:
+                w_slns[il] = [float(line.split()[1]) for line in f]
+            for k in range(1, Nblock+1):
+                w_sln[k-1] += w_slns[il][k-1]
+            il += 1
+    w_sln = list(map(lambda x: x/Nconf, w_sln))
+   # print(w_sln)
+    outf = outd1 + 'weight_refs'
+    with open(outf, 'wt') as f:
+        for k in range(1, Nblock+1):
+            str_ = '{0:d}\t{1:18.9E}\n'.format(k, w_sln[k-1])
+            f.write(str_)
