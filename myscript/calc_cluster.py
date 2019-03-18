@@ -233,6 +233,6 @@ for ic1, c1 in enumerate(new_clusters):
             y.append(pos_clust[ic2+1][1])
             z.append(pos_clust[ic1+1][2])
             z.append(pos_clust[ic2+1][2]) 
-            ax.plot(x,y,z, color='k', linestyle='-.', linewidth=1)
+            ax.plot(x,y,z, color='k', linestyle=':', linewidth=1)
 
 pyplot.show()
