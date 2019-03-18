@@ -16,12 +16,12 @@ fname = 'hbonds_chain_1000.dat'
 box = 15.46
 r0 = 0.50e0
 nbonds_min = 30
+Nmax = 8000
 
 with open(fname, 'rt') as f:
     hbonds = [[int(line.split()[0]), int(line.split()[1]), int(line.split()[2]), float(line.split()[5]), float(line.split()[6]), float(line.split()[7])] for line in f if not line.startswith('#')]
 
 N_hbond = len(hbonds)
-Nmax = 6000
 
 clusters = [[[],[]]]
 id_clusts = []
