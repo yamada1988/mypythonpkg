@@ -1,48 +1,238 @@
+import numpy as np
+import sys
 import matplotlib
 from matplotlib import pyplot
-import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import seaborn as sns
-import pyclustering
-from pyclustering.cluster import xmeans
-from pyclustering.cluster import cluster_visualizer
-import numpy as np
+import mdtraj as md
+from sklearn.cluster import KMeans
 
-
-fname = 'hbonds_chain.dat'
-knum = 100
-box = 18.915
 colordict = matplotlib.colors.cnames
 colors =  list(colordict.keys())
 print(colors)
 
 
+fname = 'hbonds_chain_1000.dat'
+box = 15.46
+r0 = 0.50e0
+nbonds_min = 30
+
 with open(fname, 'rt') as f:
-    crystalines = [[float(line.split()[5]), float(line.split()[6]), float(line.split()[7])] for line in f if not line.startswith('#')]
-    f.seek(0)
-    crystalines_02 = [[float(line.split()[8]), float(line.split()[9]), float(line.split()[10])] for line in f if not line.startswith('#')]
+    hbonds = [[int(line.split()[0]), int(line.split()[1]), int(line.split()[2]), float(line.split()[5]), float(line.split()[6]), float(line.split()[7])] for line in f if not line.startswith('#')]
 
-crystalines.extend(crystalines_02)
-crystalines = np.array(crystalines)
-data = crystalines
-init_center = pyclustering.cluster.xmeans.kmeans_plusplus_initializer(data, 3).initialize() # 初期値決定　今回は、初期クラスタ2です
-xm = pyclustering.cluster.xmeans.xmeans(data, init_center, kmax=128, ccore=False)
-xm.process() # クラスタリングします
+N_hbond = len(hbonds)
+Nmax = 6000
 
-clusters = xm.get_clusters()
-centers = xm.get_centers()
+clusters = [[[],[]]]
+id_clusts = []
+id_clust = 0
+lists = list(range(N_hbond+1))
+for id_ in range(Nmax+1):
+    print('index:', id_+1)
+    index = id_+1
+    try:
+        chain_index1 = hbonds[id_][1]
+        chain_index2 = hbonds[id_][2]
+    except:
+        break
+    r1 = np.array(hbonds[id_][3:6])
+    for l in lists:
+        r2 = np.array(hbonds[l-1][3:6])
+        d = np.linalg.norm(r1-r2)
+        if 0.0 < d < r0:
+            chain_index3 = hbonds[l-1][1]
+            chain_index4 = hbonds[l-1][2]
+            print(l, chain_index1, chain_index2, chain_index3, chain_index4, d)
+            clusters[id_clust][0].append(id_+1)
+            clusters[id_clust][1].append(chain_index1)
+            clusters[id_clust][1].append(chain_index2)
+            clusters[id_clust][0].append(l)
+            clusters[id_clust][1].append(chain_index3)
+            clusters[id_clust][1].append(chain_index4)
+           
+    # remove deprecate index in clusters and cluster_chain
+    clusters[id_clust][0] = list(set(clusters[id_clust][0]))
+    clusters[id_clust][1] = list(set(clusters[id_clust][1]))
 
-outf = 'center_hbonds.dat'
-ic = 1
+    if clusters[id_clust][0] == []:
+        continue
+    if id_clust == len(id_clusts):
+        clusters.append([[],[]])
+    id_clusts.append(id_clust)
+    id_clusts = list(set(id_clusts))
+    id_clust = len(id_clusts)
+
+clusters.remove([[],[]])
+print(clusters)
+print(id_clusts)
+
+outf = 'old_hbonds_01.dat'
 with open(outf, 'wt') as f:
-    f.write('# index\tnum\tx\ty\tz\n')
-    for c in centers:
-        nc = len(clusters[ic-1])
-        f.write('{0:3d}\t{1:4d}\t{2:6.3f}\t{3:6.3f}\t{4:6.3f}\n'.format(ic, nc, c[0], c[1], c[2]))
-        ic += 1
+    f.write('#clust\thbond\tchain1\tchain2\tx\ty\tz\n')
+id_c = 1
+for clust in clusters:
+    for id_h in clust[0]:
+        with open(outf, 'a+') as f:
+            l = '{0:3d}\t{1:5d}\t{2:4d}\t{3:4d}\t{4:7.4f}\t{5:7.4f}\t{6:7.4f}\n'.format(id_c, id_h, hbonds[id_h-1][1], hbonds[id_h-1][2],hbonds[id_h-1][3], hbonds[id_h-1][4], hbonds[id_h-1][5])
+            f.write(l)
+    id_c += 1
 
-# Visualize clustering results
-visualizer = cluster_visualizer()
-visualizer.append_clusters(clusters, data)
-visualizer.append_cluster(centers, None, marker='*', markersize = 100)
-visualizer.show()
+
+new_clusters = [['',''] for i in range(id_clusts[-1]+1)]
+dels= []
+for id_c1 in range(id_clusts[-1]+1):
+    print('=====cluster index:', id_c1+1)
+    for k in range(100):
+        c1 = clusters[id_c1][0]
+        N0 = len(c1)
+        print('=====iteration index:', k+1)
+        if id_c1 in dels:
+            print('This cluster already appended.')
+            new_clusters[id_c1][0] = ''
+            break
+        c1_chain = clusters[id_c1][1]
+        for id_c2 in range(id_clusts[-1]+1):
+            c2 = clusters[id_c2][0]
+            c2_chain = clusters[id_c2][1]
+            if c1 == c2:
+                continue
+            #print(c1,c2)
+            if list(set(c2) & set(c1)) != []:
+                c1.extend(c2)
+                c1_chain.extend(c2_chain)
+                dels.append(id_c2)
+        new_clusters[id_c1][0] = list(set(c1))
+        clusters[id_c1][0] = new_clusters[id_c1][0]
+        new_clusters[id_c1][1] = list(set(c1_chain))
+        clusters[id_c1][1] = new_clusters[id_c1][1]
+        print(N0, len(clusters[id_c1][0]))
+        if len(clusters[id_c1][0]) == N0:
+            break
+
+for k in range(1000):
+    try:
+        new_clusters.remove(['',''])
+    except:
+        break
+
+
+print('before')
+print(new_clusters)
+def get_unique_list(seq):
+    seen = []
+    return [x for x in seq if x not in seen and not seen.append(x)]
+
+new_clusters = get_unique_list(new_clusters)
+print('after')
+print(new_clusters)
+
+
+outf = 'old_hbonds_02.dat'
+with open(outf, 'wt') as f:
+    f.write('#clust\thbond\tchain1\tchain2\tx\ty\tz\n')
+for id_c, clust in enumerate(new_clusters):
+    for id_h in clust[0]:
+        with open(outf, 'a+') as f:
+            l = '{0:3d}\t{1:5d}\t{2:4d}\t{3:4d}\t{4:7.4f}\t{5:7.4f}\t{6:7.4f}\n'.format(id_c+1, id_h, hbonds[id_h-1][1], hbonds[id_h-1][2],hbonds[id_h-1][3], hbonds[id_h-1][4], hbonds[id_h-1][5])
+            f.write(l)
+
+
+for j in range(10):
+    for i in range(len(new_clusters)):
+        try:
+            if new_clusters[i][0] == '' or len(new_clusters[i][0]) < nbonds_min:
+                del new_clusters[i]
+        except:
+            break
+
+for i in range(len(new_clusters)):
+    print(i+1, new_clusters[i][1], new_clusters[i][0])
+
+outf = 'cluster_hbonds.dat'
+with open(outf, 'wt') as f:
+    f.write('#clust\thbond\tchain1\tchain2\tx\ty\tz\n')
+id_c = 1
+for clust in new_clusters:
+    for id_h in clust[0]:
+        with open(outf, 'a+') as f:
+            l = '{0:3d}\t{1:5d}\t{2:4d}\t{3:4d}\t{4:7.4f}\t{5:7.4f}\t{6:7.4f}\n'.format(id_c, id_h, hbonds[id_h-1][1], hbonds[id_h-1][2],hbonds[id_h-1][3], hbonds[id_h-1][4], hbonds[id_h-1][5])
+            f.write(l)
+    id_c += 1
+
+
+Nc = len(new_clusters)
+linked_nodes = [0 for i in range(Nc)]
+for ic1, c1 in enumerate(new_clusters):
+    for ic2 in range(ic1+1, Nc):
+        if ic2 >= Nc-1:
+            break
+        print(ic1+1,ic2+1)
+        c2 = new_clusters[ic2+1]
+        if list(set(c2[1]) & set(c1[1])) != []:
+            print(ic1+1, ic2+1, 'bonded')
+            linked_nodes[ic1] += 1
+
+outf = 'clusters.dat'
+with open(outf, 'wt') as f:
+    f.write('#clust\tbonds\tk\tlinks\tx\ty\tz\n')
+
+pos_clust = [[0.0e0, 0.0e0, 0.0e0] for i in range(len(new_clusters))]
+with open(outf, 'at') as f:
+    for ic, clust in enumerate(new_clusters):
+        N = len(clust[0])
+        for id_h in clust[0]:
+            pos_clust[ic][0] += hbonds[id_h-1][3]
+            pos_clust[ic][1] += hbonds[id_h-1][4]
+            pos_clust[ic][2] += hbonds[id_h-1][5]
+        pos_clust[ic][0] /= N
+        pos_clust[ic][1] /= N
+        pos_clust[ic][2] /= N
+        f.write('{0:4d}\t{1:3d}\t{2:2d}\t{3:3d}\t{4:7.4f}\t{5:7.4f}\t{6:7.4f}\n'.format(ic+1, len(clust[0]), len(clust[1]), linked_nodes[ic], pos_clust[ic][0], pos_clust[ic][1], pos_clust[ic][2]))
+
+
+# Plot backbones
+fig = pyplot.figure(figsize=(12,8))
+ax = Axes3D(fig)
+
+ax.set_xlabel("X-axis")
+ax.set_ylabel("Y-axis")
+ax.set_zlabel("Z-axis")
+
+ax.set_xlim(-0.0, 1.0*box)
+ax.set_ylim(-0.0, 1.0*box)
+ax.set_zlim(-0.0, 1.0*box)
+
+
+for i in range(Nc):
+    x = pos_clust[i][0]
+    y = pos_clust[i][1]
+    z = pos_clust[i][2]
+    print('index:',i, x, y, z)
+    ax.plot([x], [y], [z], "*", color=colors[i%50], ms=10)
+
+for ic1, c1 in enumerate(new_clusters):
+    for ic2 in range(ic1+1, Nc):
+        x = []
+        y = []
+        z = []
+        if ic2 >= Nc-1:
+            break 
+        print(ic1+1,ic2+1)
+        c2 = new_clusters[ic2+1]
+        if list(set(c2[1]) & set(c1[1])) != []:
+            print(ic1+1, ic2+1, 'bonded')
+            print(pos_clust[ic1+1], pos_clust[ic2+1])
+            a = np.array(pos_clust[ic1+1])
+            b = np.array(pos_clust[ic2+1])
+            d = np.linalg.norm(a-b)
+            if d > box * 0.60e0:
+                continue
+            x.append(pos_clust[ic1+1][0])
+            x.append(pos_clust[ic2+1][0])
+            y.append(pos_clust[ic1+1][1])
+            y.append(pos_clust[ic2+1][1])
+            z.append(pos_clust[ic1+1][2])
+            z.append(pos_clust[ic2+1][2]) 
+            ax.plot(x,y,z, color='k', linestyle='-.', linewidth=1)
+
+pyplot.show()
