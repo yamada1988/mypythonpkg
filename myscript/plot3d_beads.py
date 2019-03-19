@@ -1,24 +1,20 @@
+import matplotlib
 from matplotlib import pyplot
 from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.animation as animation
 import seaborn as sns
 import mdtraj as md
 import numpy as np
 import sys
 
-# Parameters
+colordict = matplotlib.colors.cnames
+colors =  list(colordict.keys())
+print(colors)
 
-Nmol = 1611
+# Parameters
 Nchain = 50
-Nstart = 4654
 d_hbond = 0.240 # (nm)
 
-# Input Setting
-index_ = int(sys.argv[1]) 
-frame_ = int(sys.argv[2])
-print('frame:',frame_)
-
-fname = 'npt_par{0:04d}_nopbc{1:05d}.gro'.format(index_, frame_)
+fname = 'pbc_1000.gro'
 t = md.load(fname)
 top = t.topology
 df, b = top.to_dataframe()
@@ -29,9 +25,10 @@ df['x'] = pos[0,:,0]
 df['y'] = pos[0,:,1]
 df['z'] = pos[0,:,2]
 
+
 #print(df)
-tmp = df[df['resName']=='PVA0c']
-backbones = tmp[tmp['name']=='c3'].reset_index()[1::2]
+tmp = df[df['resName']=='PVA20']
+backbones = tmp[tmp['name']=='c3'].reset_index()
 acceptor = df[df['name'] == 'oh']
 donor = df[df['name'] == 'ho']
 
@@ -40,53 +37,70 @@ print(backbones)
 #print(donor)
 
 sns.set_palette("hls", Nchain)
-hbondf = 'hbonds_par{0:04d}_chain{1:05d}.dat'.format(index_, frame_)
-
+cf = 'clusters.dat'
 
 # Hydrogen bonding between inter-chain
-with open(hbondf, 'rt') as f:
-    #pos_ac_bonded = [[float(line.split()[5]), float(line.split()[6]), float(line.split()[7])] for line in f if not line.startswith('#')]
-#x_ac_bonded = list(zip(*pos_ac_bonded)[0])
-#y_ac_bonded = list(zip(*pos_ac_bonded)[1]) 
-#z_ac_bonded = list(zip(*pos_ac_bonded)[2])
-    atm_bonded = [int(line.split()[3])-3 for line in f if not line.startswith('#')]
+with open(cf, 'rt') as f:
+    pos_clust = [[float(line.split()[5]), float(line.split()[6]), float(line.split()[7])] for line in f if not line.startswith('#')]
 
-hbonded = backbones[backbones['index'].isin(atm_bonded)]
-x_ac_bonded = list(hbonded['x'])
-y_ac_bonded = list(hbonded['y'])
-z_ac_bonded = list(hbonded['z'])
-print(x_ac_bonded)
+bf = 'cluster_hbonds.dat'
+with open(bf, 'rt') as f:
+    c_atms = [[int(line.split()[0]), int(line.split()[4]), int(line.split()[5])] for line in f if not line.startswith('#')]
+print(pos_clust)
 
 # Plot backbones
-fig = pyplot.figure()
+fig = pyplot.figure(figsize=(12,8))
 ax = Axes3D(fig)
 
 ax.set_xlabel("X-axis")
 ax.set_ylabel("Y-axis")
 ax.set_zlabel("Z-axis")
 
-ax.set_xlim(-3.0, 1.40*box)
-ax.set_ylim(-3.0, 1.40*box)
-ax.set_zlim(-3.0, 1.40*box)
+ax.set_xlim(-0.0, 1.0*box)
+ax.set_ylim(-0.0, 1.0*box)
+ax.set_zlim(-0.0, 1.0*box)
+
+# Plot cluster atoms
+Nc = len(pos_clust)
+for i in range(Nc):
+    for ca in c_atms:
+        if ca[0] == i+1:
+            x1 = backbones[(backbones['serial']==ca[1]-2)]['x'].values
+            y1 = backbones[(backbones['serial']==ca[1]-2)]['y'].values
+            z1 = backbones[(backbones['serial']==ca[1]-2)]['z'].values
+            x2 = backbones[(backbones['serial']==ca[2]-3)]['x'].values
+            y2 = backbones[(backbones['serial']==ca[2]-3)]['y'].values
+            z2 = backbones[(backbones['serial']==ca[2]-3)]['z'].values
+            ax.plot(x1,y1,z1, "o", color=colors[i%50], ms=4.0,markeredgewidth=1, markeredgecolor='black')
+            ax.plot(x2,y2,z2, "o", color=colors[i%50], ms=4.0,markeredgewidth=1, markeredgecolor='black')
+
+for ca in c_atms:
+    backbones.drop(backbones.index[backbones.serial==ca[1]-2], inplace=True)
+    backbones.drop(backbones.index[backbones.serial==ca[2]-3], inplace=True)
+
 
 xs = ['' for i in range(Nchain)]
 ys = ['' for i in range(Nchain)]
 zs = ['' for i in range(Nchain)]
-
 for i in range(1, Nchain+1):
+    print(backbones[(backbones['resSeq']==i)])
     xs[i-1] = backbones[(backbones['resSeq']==i)]['x'].values
     ys[i-1] = backbones[(backbones['resSeq']==i)]['y'].values
     zs[i-1] = backbones[(backbones['resSeq']==i)]['z'].values
-    ax.plot(xs[i-1], ys[i-1], zs[i-1], "o-", lw=0.20, ms=1.50)
+    ax.plot(xs[i-1], ys[i-1], zs[i-1], ".", color='black', markersize=2.0, markeredgewidth=1)
 
 
-# Plot hydrogen bonding
-#print(x_ac_bonded)
-ax.plot(x_ac_bonded, y_ac_bonded, z_ac_bonded, "*", color="k", ms=3)
-ax.text2D(0.90, 0.95, "{0: 4.1f} ps".format(float(frame_)), transform=ax.transAxes)
+# Plot clusters
+for i in range(Nc):
+    x = pos_clust[i][0]
+    y = pos_clust[i][1]
+    z = pos_clust[i][2]
+    print('index:',i, x, y, z)
+    #ax.plot([x], [y], [z], "o", color=colors[i%50], ms=25, alpha=0.50)
+    #ax.text(x, y, z, '{0:2d}'.format(i+1), color='white', fontsize=16)
 
-ofname = 'npt_par{0:04d}_bead{1:05d}.eps'.format(index_, frame_)
-pyplot.savefig(ofname)
 
-#pyplot.show()
+ofname = 'npt.eps'
+#pyplot.savefig(ofname)
 
+pyplot.show()
