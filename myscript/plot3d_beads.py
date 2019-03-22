@@ -107,9 +107,9 @@ with open(fname, 'wt') as f:
     f.write('{0:8d}\n'.format(il))
 for c in chain:
     nmol = int(c/1405) + 1
-    if c >= 1000000:
-        c = c%(1000000-1)
-    l = '{0:5d}PVA20   c3{1:5d}'.format(nmol, c)
+    c0 = c%(100000-1)
+    print(c,c0)
+    l = '{0:5d}PVA20   c3{1:5d}'.format(nmol, c0)
     print(l)
     x = backbones[(backbones['index']==c-1)]['x'].values[0]
     y = backbones[(backbones['index']==c-1)]['y'].values[0]
