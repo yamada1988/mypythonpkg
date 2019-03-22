@@ -88,8 +88,8 @@ for i in range(Nc):
         if ca[0] == i+1:
             ls[i] += '{0:6d} {1:6d}'.format(ca[1]-2, ca[2]-3)
             try:
-                chain.remove(ca[1])
-                chain.remove(ca[2])
+                chain.remove(ca[1]-2)
+                chain.remove(ca[2]-3)
                 #print(ca[1], ca[2],chain)
             except:
                 pass
