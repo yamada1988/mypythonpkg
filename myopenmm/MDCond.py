@@ -446,7 +446,7 @@ class MDConductor:
         simulation_ = Simulation(simtop, simsys, simint, Platform.getPlatformByName('CPU'))
         simulation_.context.setPositions(simpos)
         
-        simulation_.minimizeEnergy(maxIterations=100000)
+        simulation_.minimizeEnergy(maxIterations=5000)
 
         print('Check Energy...')
         state = simulation_.context.getState(getEnergy=True)
