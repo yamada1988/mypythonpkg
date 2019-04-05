@@ -40,7 +40,7 @@ print(acceptor)
 print(donor)
 
 Nchain = 100
-d_hbond = 0.240 # (nm)
+d_hbond = 0.320 # (nm)
 theta0 = 30 # (degree)
 # inter-chain
 outf = 'hbonds_chain.dat'
