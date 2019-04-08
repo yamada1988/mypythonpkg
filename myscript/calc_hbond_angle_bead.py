@@ -8,7 +8,6 @@ def unit_vector(vector):
 
 def angle_between(v1, v2):
     """ Returns the angle in radians between vectors 'v1' and 'v2'::
-
             >>> angle_between((1, 0, 0), (0, 1, 0))
             1.5707963267948966
             >>> angle_between((1, 0, 0), (1, 0, 0))
@@ -46,7 +45,7 @@ theta0 = 30 # (degree)
 outf = 'hbonds_chain.dat'
 
 with open(outf, 'wt') as f:
-    f.write('#index\tmol1\tchain2\tatm1\tatm2\tx1\ty1\tz1\tx2\ty2\tz2\tO-H dist\n')
+    f.write('#index\tmol1\tchain2\tatm1\tatm2\tx1\ty1\tz1\tx2\ty2\tz2\tO-O dist\t angle\n')
 
 with open(outf, 'a+') as f:
     icount = 0
@@ -83,5 +82,5 @@ with open(outf, 'a+') as f:
                             icount += 1
                             print('molpair: {0:4d}\t{1:4d}'.format(i,j))
                             print('atmpair: {0:4d}\t{1:4d}\t{2:6.5f}\t{3:3.2f}'.format(atm_ih[ipa], atm_jo[jpa], d, theta))
-                            f.write('{0:4d}\t{1:3d}\t{2:4d}\t{3:4d}\t{4:4d}\t{5:7.3f}\t{6:7.3f}\t{7:7.3f}\t{8:7.3f}\t{9:7.3f}\t{10:7.3f}\t{11:6.5f}\n'.format(
-                                    icount, i, j, atm_ih[ipa], atm_jo[jpa], pos_ih[ipa][0], pos_ih[ipa][1], pos_ih[ipa][2], pos_jo[jpa][0], pos_jo[jpa][1], pos_jo[jpa][2], d))
+                            f.write('{0:4d}\t{1:3d}\t{2:4d}\t{3:4d}\t{4:4d}\t{5:7.3f}\t{6:7.3f}\t{7:7.3f}\t{8:7.3f}\t{9:7.3f}\t{10:7.3f}\t{11:6.5f}\t{12:3.2f}\n'.format(
+                                    icount, i, j, atm_ih[ipa], atm_jo[jpa], pos_ih[ipa][0], pos_ih[ipa][1], pos_ih[ipa][2], pos_jo[jpa][0], pos_jo[jpa][1], pos_jo[jpa][2], d, theta))
