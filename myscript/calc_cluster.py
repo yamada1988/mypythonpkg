@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 import matplotlib
+matplotlib.use('Qt4Agg')
 from matplotlib import pyplot
 from mpl_toolkits.mplot3d import Axes3D
 import seaborn as sns
@@ -12,10 +13,10 @@ colors =  list(colordict.keys())
 print(colors)
 
 
-fname = 'hbonds_chain_1000.dat'
-box = 15.46
-r0 = 0.450e0
-nbonds_min = 20
+fname = 'hbonds_chain20.dat'
+box = 17.26480
+r0 = 0.70e0
+nbonds_min = 1
 Nmax = 8000
 
 with open(fname, 'rt') as f:
@@ -23,6 +24,34 @@ with open(fname, 'rt') as f:
                float(line.split()[5]), float(line.split()[6]), float(line.split()[7])] for line in f if not line.startswith('#')]
 
 N_hbond = len(hbonds)
+
+l_ = ''
+il = 0
+for h in hbonds:
+    l = '{0:5d} {1:5d} '.format(h[3], h[4])
+    l_ += l
+    il += 1
+    if il == 12:
+        l_ += '\n'
+        with open('hbonds.ndx', 'a+') as f:
+            f.write(l_)
+        l_ = ''
+        il = 0   
+
+import networkx as nx
+G = nx.Graph()
+Nchain = 50
+for i in range(1,Nchain+1):
+    G.add_node(i)
+
+for h in hbonds:                
+    G.add_edge(h[1], h[2])
+
+pos = nx.spring_layout(G)
+nx.draw(G, pos, with_labels=True)
+pyplot.show() 
+
+sys.exit()
 
 clusters = [[[],[]]]
 id_clusts = []
