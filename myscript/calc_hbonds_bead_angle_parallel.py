@@ -22,7 +22,7 @@ def angle_between(v1, v2):
 
 
 
-fname = 'systemr_5000.gro'
+fname = '../systemlllll_0050.gro'
 t = md.load(fname)
 top = t.topology
 df, b = top.to_dataframe()
@@ -39,7 +39,7 @@ donor = df[df['name'] == 'oh']
 print(acceptor)
 print(donor)
 
-Nchain = 100
+Nchain = 50
 d_hbond = 0.320 # (nm)
 theta0 = 30 # (degree)
 # inter-chain
@@ -69,14 +69,14 @@ def calc_hbond(i):
                 if ipa == jpa:
                     continue
                 r_joio = pjo - pio
-                dr_joio = np.abs(pio - pjo)
-                #print(dr/box, np.round(dr/box))
-                dr_joio -= np.round(dr_joio/box)*box
+                #print(d= r_joio - (r_/box, np.round(dr/box))
+                dr_joio = r_joio - np.round(r_joio/box)*box
+                #print('dr:', dr_joio)
                 #print(dr/box)
                 d = np.sqrt(np.sum(dr_joio**2))
                 #print(d)
                 if d <= d_hbond:
-                    r_ihio = ipa - pos_ih[ipa] 
+                    r_ihio = pos_ih[ipa] - pos_io[ipa]
                     theta = angle_between(r_ihio, r_joio) * 180.0/np.pi
                     if theta <= theta0:
                         l = '{0:3d}\t{1:3d}\t{2:6d}\t{3:6d}\t{4:7.3f}\t{5:7.3f}\t{6:7.3f}\t{7:7.3f}\t{8:7.3f}\t{9:7.3f}\t{10:6.5f}\t{11:3.2f}\n'.format(
