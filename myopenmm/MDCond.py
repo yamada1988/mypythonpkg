@@ -434,7 +434,7 @@ class MDConductor:
         return simulation
 
     # EM simulation
-    def minimize(self, simulation, emname, index, sysdir='SYS/'):
+    def minimize(self, simulation, emname, index, sysdir='SYS/',max_iter=4000):
         emname = emname + index
 
         print('Minimizing...')
@@ -446,7 +446,7 @@ class MDConductor:
         simulation_ = Simulation(simtop, simsys, simint, Platform.getPlatformByName('CPU'))
         simulation_.context.setPositions(simpos)
         
-        simulation_.minimizeEnergy(maxIterations=5000)
+        simulation_.minimizeEnergy(maxIterations=max_iter,tolerance = 4.148)
 
         print('Check Energy...')
         state = simulation_.context.getState(getEnergy=True)
