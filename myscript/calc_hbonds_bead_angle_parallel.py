@@ -22,7 +22,7 @@ def angle_between(v1, v2):
 
 
 
-fname = '../systemlllll_0050.gro'
+fname = '../systeml_0005.gro'
 t = md.load(fname)
 top = t.topology
 df, b = top.to_dataframe()
@@ -76,13 +76,14 @@ def calc_hbond(i):
                 d = np.sqrt(np.sum(dr_joio**2))
                 #print(d)
                 if d <= d_hbond:
-                    r_ihio = pos_ih[ipa] - pos_io[ipa]
-                    theta = angle_between(r_ihio, r_joio) * 180.0/np.pi
-                    if theta <= theta0:
+                    r_jhio = pos_io[ipa] - pos_jh[jpa]
+                    r_jojh = pos_jo[jpa] - pos_jh[jpa]
+                    theta = angle_between(r_jhio, r_jojh) * 180.0/np.pi
+                    if theta <= theta0 :
                         l = '{0:3d}\t{1:3d}\t{2:6d}\t{3:6d}\t{4:7.3f}\t{5:7.3f}\t{6:7.3f}\t{7:7.3f}\t{8:7.3f}\t{9:7.3f}\t{10:6.5f}\t{11:3.2f}\n'.format(
                             i, j, atm_ih[ipa]+1, atm_jo[jpa]+1, pos_ih[ipa][0], pos_ih[ipa][1], pos_ih[ipa][2], pos_jo[jpa][0], pos_jo[jpa][1], pos_jo[jpa][2], d, theta)
                         ls.append(l)
-    print(ls[0])
+    #print(ls[0])
     return ls
 
 
