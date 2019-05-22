@@ -9,8 +9,9 @@ MassTable = {'C':12.0,'O':24.0,'Os':24.0,'VS':1.008,'H':1.008}
 target = 100
 dr = 0.020 #nm
 Lstd = 12.0
-gr = np.array([0.0e0 for i in range(int(Lstd/2.0e0*1/dr))])
-
+Nmax = int(Lstd/(2.0e0*dr))
+gr = np.array([0.0e0 for i in range(Nmax)])
+print(Nmax)
 @jit
 def calc_com(p, e):
     R = np.array([0.0e0, 0.0e0, 0.0e0])
@@ -79,14 +80,14 @@ def calc_rdf(rslv,gr):
     for ir in range(N):
         rs = np.array(rslv[ir])
         r = rs - r0
-        #print(r)
+        print(ir)
         #print(np.round(r/L)) 
         r -= np.round(r/L)*L
         #print(r)
         rnorm = np.linalg.norm(r)
         index = int(rnorm/dr)
-        #print(rnorm, index)
-        if index <= Nmax:
+        print(rnorm, index)
+        if index < Nmax:
             gr[index] += 1
 
 
@@ -121,21 +122,21 @@ for t in ts:
     box = t.unitcell_lengths[0,0]
     #print('shape', pos.shape)
 
-    print('calc_COM')    
-    date2 = datetime.datetime.now()
-    print(date2)
+    #print('calc_COM')    
+    #date2 = datetime.datetime.now()
+    #print(date2)
 
     calcs(pos, ele, Nmol, Nchain, Rs)
-    print('end calc_COM')
-    date2 = datetime.datetime.now()
-    print(date2)
+    #print('end calc_COM')
+    #date2 = datetime.datetime.now()
+    #print(date2)
     
     L = t.unitcell_lengths[0,0]
     #print(Rs)
     #print(L)
     rho = 10000/(L**3)
     Lhalf = L/2.0e0
-    Nmax = int(Lhalf/dr)
+    #Nmax = int(Lhalf/dr)
     r0 = Rs[target-1]
     r0 = np.array(r0)
     rslv = Rs[target:]
