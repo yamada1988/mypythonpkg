@@ -3,7 +3,7 @@ import numpy as np
 import sys
 args = sys.argv
  
-MassTable = {'C':12.0,'O':24.0,'Os':24.0,'VS':1.008,'H':1.008}
+MassTable = {'C':12.0,'O':16.0,'Os':24.0,'VS':1.008,'H':1.008}
 target = 100
 dr = 0.020 #nm
 Lstd = 12.0
