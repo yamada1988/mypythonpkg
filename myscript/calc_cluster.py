@@ -295,3 +295,4 @@ for ic1, c1 in enumerate(new_clusters):
             ax.plot(x,y,z, color='k', linestyle=':', linewidth=1)
             
 pyplot.savefig('clust.eps')
+pyplot.show()
