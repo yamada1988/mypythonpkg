@@ -13,10 +13,10 @@ colors =  list(colordict.keys())
 print(colors)
 
 
-fname = 'hbonds_chain20.dat'
-box = 17.26480
+fname = 'hbonds_chain_long_others.dat'
+box = 16.78288
 r0 = 0.70e0
-nbonds_min = 1
+nbonds_min = 10
 Nmax = 8000
 
 with open(fname, 'rt') as f:
@@ -51,7 +51,7 @@ pos = nx.spring_layout(G)
 nx.draw(G, pos, with_labels=True)
 pyplot.show() 
 
-sys.exit()
+#sys.exit()
 
 clusters = [[[],[]]]
 id_clusts = []
@@ -212,13 +212,21 @@ with open(outf, 'wt') as f:
     f.write('#clust\tbonds\txsi\tk\tlinks\tx\ty\tz\n')
 
 pos_clust = [[0.0e0, 0.0e0, 0.0e0] for i in range(len(new_clusters))]
+hbond_ndx = ['' for i in range(len(new_clusters))]
 with open(outf, 'at') as f:
     for ic, clust in enumerate(new_clusters):
         N = len(clust[0])
+        il = 0
         for id_h in clust[0]:
             pos_clust[ic][0] += hbonds[id_h-1][5]
             pos_clust[ic][1] += hbonds[id_h-1][6]
             pos_clust[ic][2] += hbonds[id_h-1][7]
+            l = '{0:5d} {1:5d} '.format(hbonds[id_h-1][3], hbonds[id_h-1][4])
+            hbond_ndx[ic] += l
+            il += 1
+            if il == 12:
+                hbond_ndx[ic] += '\n'
+                il = 0
         pos_clust[ic][0] /= N
         pos_clust[ic][1] /= N
         pos_clust[ic][2] /= N
@@ -230,6 +238,14 @@ with open(outf, 'at') as f:
         r *= 2.0e0
         f.write('{0:4d}\t{1:3d}\t{2:5.3f}\t{3:2d}\t{4:3d}\t{5:7.4f}\t{6:7.4f}\t{7:7.4f}\n'.format(ic+1, len(clust[0]), r, len(clust[1]), linked_nodes[ic], 
                 pos_clust[ic][0], pos_clust[ic][1], pos_clust[ic][2]))
+
+
+with open('hbonds_clust.ndx', 'wt') as f:
+    for ic in range(len(new_clusters)):
+        f.write('[ cluster {0:3d} ]\n'.format(ic))
+        f.write(hbond_ndx[ic])
+        f.write('\n')
+
 
 
 # Plot backbones
@@ -279,4 +295,3 @@ for ic1, c1 in enumerate(new_clusters):
             ax.plot(x,y,z, color='k', linestyle=':', linewidth=1)
             
 pyplot.savefig('clust.eps')
-pyplot.show()
