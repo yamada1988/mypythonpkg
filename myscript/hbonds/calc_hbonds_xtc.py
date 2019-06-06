@@ -1,8 +1,10 @@
 import mdtraj as md
 import numpy as np
 import sys
+import os
 from joblib import Parallel, delayed
 from scipy.sparse import lil_matrix, csr_matrix
+import pickle
 import time
 
 def unit_vector(vector):
@@ -25,11 +27,10 @@ def angle_between(v1, v2):
 def calc_hbond(i, a_pos, d_pos):
     ls = []
     for j in range(1, Nchain+1):
-        if i == 1:
-            print(it, i, a_pos[0])
         t0 = time.time()
         if j == i:
-            continue
+            #continue
+            pass
         for ipa, pio in enumerate(a_pos[(i-1)*Nmon:i*Nmon]):
             for jpa, pjo in enumerate(a_pos[(j-1)*Nmon:j*Nmon]):
                 if ipa == jpa:
@@ -39,7 +40,7 @@ def calc_hbond(i, a_pos, d_pos):
                 #print(dr/box)
                 d = np.sqrt(np.sum(dr_joio**2))
                 #print(d)
-                if d <= d_hbond:
+                if 0.001e0 < d <= d_hbond:
                     r_jhio = pio - d_pos[(j-1)*Nmon+jpa] 
                     r_jhjo = pjo - d_pos[(j-1)*Nmon+jpa] 
                     theta = angle_between(r_jhio, r_jhjo) * 180.0/np.pi
@@ -59,7 +60,7 @@ Nmon = 100
 d_hbond = 0.30 # (nm)
 theta0 = 30 # (degree)
 sysname = './systemr.gro'
-xtcname = './npt_r_0001.xtc'
+xtcname = './nptr_01000.xtc'
 k = md.load(xtcname, top=sysname)
 Nframes = k.n_frames
 
@@ -73,6 +74,10 @@ d_indexes = np.array(donor.index)
 #print(a_indexes)
 #print(d_indexes)
 reses = np.array([i+1 for i in range(Nmon) for k in range(100)])
+try:
+    os.makedirs('./sij')
+except :
+    pass
 
 sij = []
 
@@ -82,19 +87,27 @@ for t in md.iterload(xtcname,top=sysname):
     pos = t.xyz
     box = t.unitcell_lengths[0,0]
 
-    print(pos.shape)
+    #print(pos.shape)
     for p in pos:
+        if it < tstart or it >= tend:
+            print(it)
+            it += 1
+            continue
         t0 = time.time()
         s = lil_matrix((Nchain*Nmon, Nchain*Nmon))
         a_pos = p[a_indexes]
         d_pos = p[d_indexes]
         results = Parallel(n_jobs=-1)([delayed(calc_hbond)(n, a_pos, d_pos) for n in range(1, Nchain+1)])
         print('##########')
-        #print(it, results)
-        for r in results:
-            s[r[0], r[1]] = 1.0e0
+        for rs in results:
+            if rs is None:
+                continue
+            for r in rs:
+                s[r[0], r[1]] = 1.0e0
         sij.append(s)
-        print(sij[it])
+        print(it, s)
+        with open('sij/sij_{0:05d}.pickle'.format(it), 'wb') as f:
+            pickle.dump(s, f)
         t1 = time.time()
         print(it, t1-t0)
         it += 1
