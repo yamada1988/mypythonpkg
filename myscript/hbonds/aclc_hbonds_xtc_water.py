@@ -151,10 +151,10 @@ it = 0
 for t in md.iterload(xtcname,top=sysname):
     print('it: {0:5d}'.format(it))
     pos = t.xyz
-    box = t.unitcell_lengths[0,0]
+    boxs = t.unitcell_lengths
 
-    for p in pos:
-        t0 = time.time()
+    for ip,p in enumerate(pos):
+        box = boxs[ip,0]
         s = lil_matrix((N_acc, N_dno))
         a_pos = p[a_indexes]
         d_pos = p[d_indexes]
