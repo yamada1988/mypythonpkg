@@ -60,7 +60,7 @@ Nmon = 100
 d_hbond = 0.30 # (nm)
 theta0 = 30 # (degree)
 sysname = './systemr.gro'
-xtcname = './nptr_01000.xtc'
+xtcname = './npt_r_gpu.xtc'
 k = md.load(xtcname, top=sysname)
 Nframes = k.n_frames
 
@@ -85,10 +85,11 @@ it = 0
 for t in md.iterload(xtcname,top=sysname):
     print('it: {0:5d}'.format(it))
     pos = t.xyz
-    box = t.unitcell_lengths[0,0]
+    boxs = t.unitcell_lengths
 
     #print(pos.shape)
-    for p in pos:
+    for ip,p in enumerate(pos):
+        box = boxs[ip,0]
         if it < tstart or it >= tend:
             print(it)
             it += 1
