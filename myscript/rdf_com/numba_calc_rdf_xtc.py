@@ -5,13 +5,13 @@ import sys
 import datetime
 args = sys.argv
 
-MassTable = {'C':12.0,'O':16.0,'Os':16.0,'VS':1.008,'H':1.008}
-target = 70
+MassTable = {'C':12.0,'O':16.0,'Os':16.0,'VS':1.008,'H':1.008,'F':18.99}
+target = 100
 dr = 0.020 #nm
 Lstd = 12.0
 Nmax = int(Lstd/(2.0e0*dr))
 gr = np.array([0.0e0 for i in range(Nmax)])
-print(Nmax)
+#print(Nmax)
 @jit
 def calc_com(p, e):
     R = np.array([0.0e0, 0.0e0, 0.0e0])
