@@ -44,6 +44,9 @@ def make_nlist(pos):
         '''
         int l = 0;
         for (int j = 1; j < _ind.size(); j++){
+             if (i == j){
+                 continue;
+             }
              double tmp[3] = {0.0};
              double diff = 0.0;
              for (int k = 0; k<3; k++){ 
@@ -184,8 +187,8 @@ def flatten(nested_list):
 
 
 # Parameters
-recdt = 0.0040e0 # ps
-tint = 25
+recdt = 0.10e0 # ps
+tint = 5
 dt = recdt * tint #ps
 Nchain = 138518
 Nmon = 1
@@ -195,45 +198,12 @@ import math
 rad0 = theta0/180.0*math.pi # rad
 d_nlist = 1.50 # nm
 dt_nlist = 500 # 2.0ps
-dt_rec = 500
+dt_rec = 10
 lmax = 1000 # max_intnum  lmax=1120/2nm
 data = cp.arange(Nchain, dtype=np.int32)
 sysname = './sys/solution.gro'
 xtcname = './MD/npt_r_gpu.xtc'
 outdir = 'sij_'+xtcname.split('/')[-1].split('.')[0]
-logfile = outdir + '/sij.log'
-from datetime import datetime as dat
-import datetime
-tdatetime = dat.now()
-tstr = tdatetime.strftime('%Y-%m-%d-%H:%M:%S')
-with open(logfile, 'wt') as f:
-    f.write('# sij calculation started at '+ tstr + '\n')
-    f.write('# prog%\ttime(ps\ttotbond\tend time\n')
-#k = md.load(xtcname, top=sysname)
-#Nframes = k.n_frames
-Nframes = 100000
-infodict = read_info()
-acname = infodict['acceptor']
-dnname1 = infodict['donor1']
-dnname2 = infodict['donor2']
-if dnname2 == '':
-    dnname2 = dnname1
-print(acname, dnname1, dnname2)
-
-
-st = md.load(sysname)
-top = st.topology
-df, b = top.to_dataframe()
-acceptor = df[df['name'] == acname]
-donor = df[(df['name'] == dnname1) | (df['name'] == dnname2)]
-
-#print(donor)
-a_indexes = np.array(acceptor.index)
-d_indexes = np.array(donor.index)
-#print(a_indexes)
-#print(d_indexes)
-N_acc = len(a_indexes)
-N_dno = len(d_indexes)
 try:
     os.makedirs(outdir)
 except :
@@ -259,6 +229,40 @@ if __name__ == '__main__':
 ====================
 '''
     pickle.dump(line, f)
+
+logfile = outdir + '/sij.log'
+from datetime import datetime as dat
+import datetime
+tdatetime = dat.now()
+tstr = tdatetime.strftime('%Y-%m-%d-%H:%M:%S')
+with open(logfile, 'wt') as f:
+    f.write('# sij calculation started at '+ tstr + '\n')
+    f.write('# prog%\ttime(ps\ttotbond\tend time\n')
+#k = md.load(xtcname, top=sysname)
+#Nframes = k.n_frames
+Nframes = 10000
+infodict = read_info()
+acname = infodict['acceptor']
+dnname1 = infodict['donor1']
+dnname2 = infodict['donor2']
+if dnname2 == '':
+    dnname2 = dnname1
+print(acname, dnname1, dnname2)
+
+
+st = md.load(sysname)
+top = st.topology
+df, b = top.to_dataframe()
+acceptor = df[df['name'] == acname]
+donor = df[(df['name'] == dnname1) | (df['name'] == dnname2)]
+
+#print(donor)
+a_indexes = np.array(acceptor.index)
+d_indexes = np.array(donor.index)
+#print(a_indexes)
+#print(d_indexes)
+N_acc = len(a_indexes)
+N_dno = len(d_indexes)
 
 it = 0
 tstart = time.time()
