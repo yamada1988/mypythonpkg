@@ -45,7 +45,7 @@ def make_nlist(pos):
         int l = 0;
         for (int j = 1; j < _ind.size(); j++){
              if (i == j){
-                 continue;
+             continue; 
              }
              double tmp[3] = {0.0};
              double diff = 0.0;
@@ -187,8 +187,8 @@ def flatten(nested_list):
 
 
 # Parameters
-recdt = 0.10e0 # ps
-tint = 5
+recdt = 0.0040e0 # ps
+tint = 25
 dt = recdt * tint #ps
 Nchain = 138518
 Nmon = 1
@@ -198,38 +198,12 @@ import math
 rad0 = theta0/180.0*math.pi # rad
 d_nlist = 1.50 # nm
 dt_nlist = 500 # 2.0ps
-dt_rec = 10
+dt_rec = 500
 lmax = 1000 # max_intnum  lmax=1120/2nm
 data = cp.arange(Nchain, dtype=np.int32)
 sysname = './sys/solution.gro'
 xtcname = './MD/npt_r_gpu.xtc'
 outdir = 'sij_'+xtcname.split('/')[-1].split('.')[0]
-try:
-    os.makedirs(outdir)
-except :
-    os.remove(outdir+'/sij.pickle')
-with open(outdir+'/sij.pickle', 'wb') as f:
-    line = '''
-This picklefile contains time series of hydrogen-bond informations for each sites, sij, as csr_matrix.
-Import scipy.sparse module if you want to read.
-Example for load sij.pickle:
-====================
-def load_dumps(f):
-    obj = []
-    while 1:
-        try:
-            obj.append(pickle.load(f))
-        except:
-            break
-    return obj
-
-if __name__ == '__main__':
-    with open('sij.pickle', 'rb') as f:
-        data = load_dumps(f)
-====================
-'''
-    pickle.dump(line, f)
-
 logfile = outdir + '/sij.log'
 from datetime import datetime as dat
 import datetime
@@ -240,7 +214,7 @@ with open(logfile, 'wt') as f:
     f.write('# prog%\ttime(ps\ttotbond\tend time\n')
 #k = md.load(xtcname, top=sysname)
 #Nframes = k.n_frames
-Nframes = 10000
+Nframes = 100000
 infodict = read_info()
 acname = infodict['acceptor']
 dnname1 = infodict['donor1']
@@ -263,6 +237,33 @@ d_indexes = np.array(donor.index)
 #print(d_indexes)
 N_acc = len(a_indexes)
 N_dno = len(d_indexes)
+try:
+    os.makedirs(outdir)
+except :
+    os.remove(outdir+'/sij.pickle')
+with open(outdir+'/sij.pickle', 'wb') as f:
+    line = '''
+This picklefile contains time series of hydrogen-bond informations for each sites, sij, as csr_matrix.
+Import scipy.sparse module if you want to read.
+Example for load sij.pickle:
+====================
+def load_dumps(f):
+    obj = []
+    while 1:
+        try:
+            obj.append(pickle.load(f))
+        except:
+            break
+    return obj
+
+if __name__ == '__main__':
+    with open('sij.pickle', 'rb') as f:
+        data = load_dumps(f)
+    del data[0]
+
+====================
+'''
+    pickle.dump(line, f)
 
 it = 0
 tstart = time.time()
@@ -314,7 +315,7 @@ for t in md.iterload(xtcname,top=sysname):
             tintertime = dat.now()
             tdelta = tintertime - tstarttime
             per = float(it)/Nframes
-            remper = (1.0 - per)
+            remper = (1.0 - doneper)
             if remper <= 0.0:
                 tstr = dat.now().strftime('%Y-%m-%d-%H:%M:%S')
             else:
@@ -323,6 +324,6 @@ for t in md.iterload(xtcname,top=sysname):
                 tend = tintertime + tdelta
                 tstr = tend.strftime('%Y-%m-%d-%H:%M:%S')
             with open(logfile, 'a+') as f:
-                f.write('{0:>6.2f}\t{1:>7.2f}\t{2:7d}\t'.format(100.0*doneper, recdt*it, int(s.sum())) + tstr + '\n')
+                f.write('{0:>6.2f}\t{1:>7.2f}\t{2:7d}\t'.format(100.0*per, recdt*it, int(s.sum())) + tstr + '\n')
         
         it += 1
