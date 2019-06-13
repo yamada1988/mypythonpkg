@@ -380,9 +380,10 @@ class MDConductor:
         # Refs: http://www.maccallumlab.org/news/2015/1/23/testing
         if self.flatbottom == True:   
             flat_bottom_force = CustomBondForce(
-	    'step(r-r0) * (k/2) * (r-r0)^2')
+	    'step(abs(r-r0)-d) * (k/2) * (r-r0)^2')
             flat_bottom_force.addPerBondParameter('r0')
             flat_bottom_force.addPerBondParameter('k')
+            flat_bottom_force.addPerBondParameter('d')
 
             with open(self.restraint_file) as input_file:
     	        for line in input_file:
@@ -391,8 +392,9 @@ class MDConductor:
                     atom_index_j = int(columns[1]) - 1
                     k = float(columns[2])
                     r0 = float(columns[3])
+                    d = float(columns[4])
             print('flat-bottom restraint added particle-{0:d} and particle-{1:d}.'.format(atom_index_i, atom_index_j))
-            print('k:{0:8.5f}\tr0:{1:5.3f}'.format(k, r0))
+            print('k:{0:8.5f}\tr0:{1:5.3f}\t{2:5.3f}'.format(k, r0,d))
             flat_bottom_force.addBond(
             atom_index_i, atom_index_j, [r0, k])
 
