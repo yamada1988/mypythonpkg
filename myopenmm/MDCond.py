@@ -83,7 +83,9 @@ class MDConductor:
                         'precision' : 'double',
                         'recflag': False,
                         'virtualflag': False,
-                        'multidevice': None}
+                        'multidevice': None,
+                        'flatbottom': False,
+                        'restraint_file': None}
         
         print('Initialize...')               
     def loadFile(self, file):
@@ -161,7 +163,8 @@ class MDConductor:
         self.reporterformat = InpDict['reporterformat']
         self.virtualflag = InpDict['virtualflag']
         self.multidevice = InpDict['multidevice']
-      
+        self.flatbottom = InpDict['flatbottom']
+        self.restraint_file = InpDict['restraint_file']
 
         with open('openmm.out', 'wt') as f:
             print('writing openmm.out...')
@@ -372,6 +375,30 @@ class MDConductor:
 #                        print('{0:d}-{1:d} pair already prepared.'.format(i, j))
 #            for index in range(nonbonded_force.getNumExceptions()):
 #                print(nonbonded_force.getExceptionParameters(index))
+ 
+        # Set Restraint
+        # Refs: http://www.maccallumlab.org/news/2015/1/23/testing
+        if self.flatbottom == True:   
+            flat_bottom_force = CustomBondForce(
+	    'step(r-r0) * (k/2) * (r-r0)^2')
+            flat_bottom_force.addPerBondParameter('r0')
+            flat_bottom_force.addPerBondParameter('k')
+
+            with open(self.restraint_file) as input_file:
+    	        for line in input_file:
+                    columns = line.split()
+                    atom_index_i = int(columns[0]) - 1
+                    atom_index_j = int(columns[1]) - 1
+                    k = float(columns[2])
+                    r0 = float(columns[3])
+            print('flat-bottom restraint added particle-{0:d} and particle-{1:d}.'.format(atom_index_i, atom_index_j))
+            print('k:{0:8.5f}\tr0:{1:5.3f}'.format(k, r0))
+            flat_bottom_force.addBond(
+            atom_index_i, atom_index_j, [r0, k])
+
+        system.addForce(flat_bottom_force)
+
+
         return system
 
    
@@ -434,7 +461,7 @@ class MDConductor:
         return simulation
 
     # EM simulation
-    def minimize(self, simulation, emname, index, sysdir='SYS/',max_iter=4000):
+    def minimize(self, simulation, emname, index, sysdir='SYS/',max_iter=3500):
         emname = emname + index
 
         print('Minimizing...')
