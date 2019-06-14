@@ -146,37 +146,47 @@ for i in range(Nchain):
     thetas[i] = np.array([0.0 for l in range(len(align_pos[i])-2)])
     for l in range(len(align_pos[i])-2):
         thetas[i][l] = angle_between(align_pos[i][l], align_pos[i][l+1])
-        
-    #print(i, thetas[i]>40.0)
 
-t0 = 30.0
-Rods = [[[]] for i in range(Nchain)]
-for i in range(Nchain):
-    k = 0
-    ik = 0
-    v1 = align_pos[i][k]
-    while True:
-        if Rods[i][ik] == []:
-            Rods[i][ik].append(k)
-        v2 = align_pos[i][k+1]
-        theta = angle_between(v1, v2)
-        #print(i, ik, v1, v2, theta)
-        if theta <= t0:
-            Rods[i][ik].append(k+1)
-            k += 1
-        else:
-            v1 = align_pos[i][k+1]
-            ik += 1
-            k += 1
-            Rods[i].append([])
-        if k+1 == len(align_pos[i]):
-            del Rods[i][-1]
-            del Rods[i][-1]
-            break
+if mode in ['Seg', 'seg', 'SEG', 'SEGMENT', 'segment', 's', 'S']:
+    Rods = align_pos
+    points_pos = ['' for i in range(Nchain)]
+    for i in range(Nchain):
+        points_pos[i] = [[0.0e0 for k in ['x', 'y', 'z']] for j in range(2*Nmol-2)]
+        for l in range(len(com_pos[i])-1):
+            points_pos[i][l] = 0.50e0*(com_pos[i][l+1]+com_pos[i][l])
+            print(l, points_pos[i][l])
 
-for i in range(Nchain):
-    for ik in range(len(Rods[i])):
-        print(i, ik, Rods[i][ik])
+
+
+if mode in ['Rod', 'rod', 'ROD', 'r', 'R']:
+    t0 = 30.0
+    Rods = [[[]] for i in range(Nchain)]
+    for i in range(Nchain):
+        k = 0
+        ik = 0
+        v1 = align_pos[i][k]
+        while True:
+            if Rods[i][ik] == []:
+                Rods[i][ik].append(k)
+            v2 = align_pos[i][k+1]
+            theta = angle_between(v1, v2)
+            #print(i, ik, v1, v2, theta)
+            if theta <= t0:
+                Rods[i][ik].append(k+1)
+                k += 1
+            else:
+                v1 = align_pos[i][k+1]
+                ik += 1
+                k += 1
+                Rods[i].append([])
+            if k+1 == len(align_pos[i]):
+                del Rods[i][-1]
+                del Rods[i][-1]
+                break
+    
+    for i in range(Nchain):
+        for ik in range(len(Rods[i])):
+            print(i, ik, Rods[i][ik])
 
 
 
