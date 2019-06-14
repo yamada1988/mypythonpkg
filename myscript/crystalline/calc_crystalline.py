@@ -136,7 +136,7 @@ for j in range(Nchain):
 
 align_pos = ['' for i in range(Nchain)]
 for i in range(Nchain):
-    align_pos[i] = [[0.0e0 for k in ['x', 'y', 'z']] for j in range(200)]
+    align_pos[i] = [[0.0e0 for k in ['x', 'y', 'z']] for j in range(2*Nmol-1)]
     for l in range(len(com_pos[i])-2):
         align_pos[i][l] = 0.50e0*(com_pos[i][l+1]-com_pos[i][l])
 
@@ -170,6 +170,7 @@ for i in range(Nchain):
             k += 1
             Rods[i].append([])
         if k+1 == len(align_pos[i]):
+            del Rods[i][-1]
             del Rods[i][-1]
             break
 
