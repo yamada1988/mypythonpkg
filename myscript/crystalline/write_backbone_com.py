@@ -63,8 +63,8 @@ for j in range(Nchain):
 com_pos = ['' for i in range(Nchain)]
 align_pos = ['' for i in range(Nchain)]
 for i in range(Nchain):
-    align_pos[i] = [[0.0e0 for k in ['x', 'y', 'z']] for j in range(200)]
-    com_pos[i] = [[0.0e0 for k in ['x', 'y', 'z']] for j in range(200)]
+    align_pos[i] = [[0.0e0 for k in ['x', 'y', 'z']] for j in range(2*Nchain)]
+    com_pos[i] = [[0.0e0 for k in ['x', 'y', 'z']] for j in range(2*Nchain)]
     for l in range(len(c3s_pos[i])-1):
         #print(l, c3s_pos[i][l],c3s_pos[i][l+1])
         com_pos[i][l] = 0.50e0*(c3s_pos[i][l+1]+c3s_pos[i][l])
