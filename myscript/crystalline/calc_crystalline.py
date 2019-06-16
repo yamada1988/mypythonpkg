@@ -6,9 +6,6 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
 
-args = sys.argv
-mode = args[1]
-
 def unit_vector(vector):
     """ Returns the unit vector of the vector.  """
     vector = np.array(vector)
@@ -72,7 +69,7 @@ def plot_fig(grid, vec, box_, fig=None, ax=None, writemode='write', colormode='g
              continue
          # Make the direction data for the arrows
          u,v,w = tuple(map(unit_vector, (vec[i][:,0], vec[i][:,1], vec[i][:,2])))
-         ax.quiver(x, y, z, u, v, w, length=0.10, normalize=True, cmap = 'Reds')
+         ax.quiver(x, y, z, u, v, w, length=0.10, normalize=True, color=color_[i])
 
     return fig, ax
 
@@ -96,9 +93,28 @@ def make_gridvec(ls, pos, align):
 
     return g, v
 
-sysgro = './md_run_com.gro'
-Nchain = 72
-Nmol = 20
+
+def write_pointsdirc(p, a):
+    outgro = sysgro.split('com')[0] + 'director.gro'
+    resnum = 1
+    print(len(p), len(p[0]))
+    numatm = len(p)*len(p[0])
+    with open(outgro, 'wt') as f:
+        l = 'dirgro\n{0:8d}\n'.format(numatm)
+        f.write(l)
+        for i,pi in enumerate(p):
+            for ii,pii in enumerate(pi):
+                l = '{0:5d}PE_20   c3{1:5d}'.format(resnum, ((resnum-1)*len(p[0])+ii)% 99999 + 1) \
+                    + '{0:8.3f}{1:8.3f}{2:8.3f}{3:8.3f}{4:8.3f}{5:8.3f}\n'.format(pii[0], pii[1], pii[2], a[i][ii,0], a[i][ii,1],a[i][ii,2])
+                f.write(l)
+            resnum += 1
+        l = '{0:6.4f}\t{0:6.4f}\t{0:6.4f}\n'.format(box)
+        f.write(l)
+
+sysgro = './system0001_com.gro'
+Nchain = 100
+Nmol = 100
+d0 = 0.450 #nm
 
 t = md.load(sysgro)
 pos = t.xyz
@@ -127,140 +143,103 @@ align_pos = ['' for i in range(Nchain)]
 for i in range(Nchain):
     align_pos[i] = np.array([[0.0e0 for k in xyz] for j in range(Ncom-1)])
     for l in range(Ncom-1):
-        align_pos[i][l] = 0.50e0*(com_pos[i][l+1]-com_pos[i][l])
+        align_pos[i][l] = com_pos[i][l+1]-com_pos[i][l]
 
     # PBC treatment
     for k in range(len(xyz)):
         TorF = com_pos[i][:,k]>box
-        #print(xyz[k], TorF)
         tof0 = TorF[0]
         co = 0
         for tof_ in TorF:
-            #print(tof_, tof0)
             if tof_ == True:
                 com_pos[i][co,k] -= box
             if tof_ != tof0:
-                #print(i,co,xyz[k],tof_,tof0)
                 align_pos[i][co-1] = np.zeros(3)
                 tof0 = tof_
             co += 1
  
         TorF = com_pos[i][:,k]<0.0
-        #print(xyz[k], TorF)
         tof0 = TorF[0]
         co = 0
         for tof_ in TorF:
-            #print(tof_, tof0)
             if tof_ == True:
                 com_pos[i][co,k] += box
             if tof_ != tof0:
-                #print(i,co,xyz[k],tof_,tof0)
                 align_pos[i][co-1] = np.zeros(3)
                 tof0 = tof_
             co += 1
  
 
-if mode in ['Seg', 'seg', 'SEG', 'SEGMENT', 'segment', 's', 'S']:
-    Rods = align_pos
-    points_pos = ['' for i in range(Nchain)]
-    for i in range(Nchain):
-        points_pos[i] = np.array([np.array([0.0e0 for k in ['x', 'y', 'z']]) for j in range(Ncom-1)])
-        for l in range(Ncom-1):
-            points_pos[i][l] = 0.50e0*(com_pos[i][l+1]+com_pos[i][l])
-            #print(l, points_pos[i][l], align_pos[i][l])
+points_pos = ['' for i in range(Nchain)]
+for i in range(Nchain):
+    points_pos[i] = np.array([np.array([0.0e0 for k in ['x', 'y', 'z']]) for j in range(Ncom-1)])
+    for l in range(Ncom-1):
+        points_pos[i][l] = 0.50e0*(com_pos[i][l+1]+com_pos[i][l])
+        #print(l, points_pos[i][l], align_pos[i][l])
 
-    d0 = 0.450 #nm
-    #ths = [float(it) for it in range(5,90+1, 5)]
-    crys_list = []
-    crys_pos = [[] for i in range(Nchain)]
-    align_crys = [[] for i in range(Nchain)]
-    amor_pos = [[] for i in range(Nchain)]
-    align_amor = [[] for i in range(Nchain)]
-    ths = [20.0]
-    success = [0]
-    count = 0
-    for i in range(Nchain):
-        #ls = [s for s in range(Ncom-1)]
-        for j in range(i+1,Nchain):
-            for l0 in range(len(points_pos[i])):
-                for l in range(len(points_pos[i])):
-                    d_pos = points_pos[i][l0] - points_pos[j][l]
-                    d = np.linalg.norm(d_pos)
-                    if d < d0:
-                        #print(i,l0, j,l)
-                        #if l0 in ls:
-                        #    ls.remove(l0)
-                        #print(i,ls)
-                        t_ = angle_between(align_pos[i][l0], align_pos[j][l])
-                        #print(i,l0, j,l, d, align_pos[i][l0], align_pos[j][l], t_)
-                        #print(i,l0,j,l,judge(t_, th), d,t_)
-                        if np.linalg.norm(align_pos[i][l0]) > 0.0 and np.linalg.norm(align_pos[i][l0]) > 0.0:
-                            count += 1
-                            for ith,th in enumerate(ths):
-                                if np.linalg.norm(align_pos[i][l0]) > 0.0 and np.linalg.norm(align_pos[i][l0]) > 0.0:  
-                                    success[ith] += judge(t_,th)
-                                    if t_ <= th or th > 180.0-th:
-                                        if [i, l0] not in crys_list:
-                                            crys_list.append([i,l0])
-                                        if [j,l] not in crys_list:
-                                            crys_list.append([j,l])
-    amor_list = [[i,l] for i in range(Nchain) for l in range(Ncom-1)]
-    for list_ in crys_list:
-        try:
-            amor_list.remove(list_)
-        except:
-            continue
+write_pointsdirc(points_pos, align_pos)
+
+crys_list = []
+crys_pos = [[] for i in range(Nchain)]
+align_crys = [[] for i in range(Nchain)]
+amor_pos = [[] for i in range(Nchain)]
+align_amor = [[] for i in range(Nchain)]
+ths = [20.0]
+success = [0]
+count = 0
+for i in range(Nchain):
+    #ls = [s for s in range(Ncom-1)]
+    for j in range(i+1,Nchain):
+        for l0 in range(len(points_pos[i])):
+            for l in range(len(points_pos[i])):
+                d_pos = points_pos[i][l0] - points_pos[j][l]
+                d = np.linalg.norm(d_pos)
+                if d < d0:
+                    #print(i,l0, j,l)
+                    #if l0 in ls:
+                    #    ls.remove(l0)
+                    #print(i,ls)
+                    t_ = angle_between(align_pos[i][l0], align_pos[j][l])
+                    #print(i,l0, j,l, d, align_pos[i][l0], align_pos[j][l], t_)
+                    #print(i,l0,j,l,judge(t_, th), d,t_)
+                    if np.linalg.norm(align_pos[i][l0]) > 0.0 and np.linalg.norm(align_pos[i][l0]) > 0.0:
+                        count += 1
+                        for ith,th in enumerate(ths):
+                            if np.linalg.norm(align_pos[i][l0]) > 0.0 and np.linalg.norm(align_pos[i][l0]) > 0.0:  
+                                success[ith] += judge(t_,th)
+                                if t_ <= th or th > 180.0-th:
+                                    if [i, l0] not in crys_list:
+                                        crys_list.append([i,l0])
+                                    if [j,l] not in crys_list:
+                                        crys_list.append([j,l])
 
 
-    crys_pos, align_crys = make_gridvec(crys_list, points_pos, align_pos)
-    amor_pos, align_amor = make_gridvec(amor_list, points_pos, align_pos)
+amor_list = [[i,l] for i in range(Nchain) for l in range(Ncom-1)]
+for list_ in crys_list:
+    try:
+        amor_list.remove(list_)
+    except:
+        continue
 
 
-    for ith, th in enumerate(ths):
-       print(th, float(success[ith])/float(count), count)
-
-    #print('crystalline:')
-    #for i,c in enumerate(crys_pos):
-    #    print(i,len(c))
-    
-    #print('amorphous:')
-    #for i,a in enumerate(amor_pos):
-    #    print(i, len(a))
-
-    fig, ax = plot_fig(points_pos, align_pos, box, colormode='mono')
-    plt.show()
-    sys.exit()
-    fig_crys, ax_crys = plot_fig(crys_pos, align_crys, box, fig=None, ax=None, writemode='write', colormode='mono', colorid=0)
-    fig_crysamor, ax_crysamor = plot_fig(amor_pos, align_amor, box, fig=fig_crys, ax=ax_crys, writemode='append', colormode='mono', colorid=0.60)
-    plt.show()
+crys_pos, align_crys = make_gridvec(crys_list, points_pos, align_pos)
+amor_pos, align_amor = make_gridvec(amor_list, points_pos, align_pos)
 
 
-if mode in ['Rod', 'rod', 'ROD', 'r', 'R', 'ROd', 'rOD', 'rOd']:
-    t0 = 30.0
-    Rods = [[[]] for i in range(Nchain)]
-    for i in range(Nchain):
-        k = 0
-        ik = 0
-        v1 = align_pos[i][k]
-        while True:
-            if Rods[i][ik] == []:
-                Rods[i][ik].append(k)
-            v2 = align_pos[i][k+1]
-            theta = angle_between(v1, v2)
-            #print(i, ik, v1, v2, theta)
-            if theta <= t0:
-                Rods[i][ik].append(k+1)
-                k += 1
-            else:
-                v1 = align_pos[i][k+1]
-                ik += 1
-                k += 1
-                Rods[i].append([])
-            if k+1 == len(align_pos[i]):
-                del Rods[i][-1]
-                del Rods[i][-1]
-                break
-    
-    for i in range(Nchain):
-        for ik in range(len(Rods[i])):
-            print(i, ik, Rods[i][ik])
+for ith, th in enumerate(ths):
+   print(th, float(success[ith])/float(count), count)
+
+#print('crystalline:')
+#for i,c in enumerate(crys_pos):
+#    print(i,len(c))
+
+#print('amorphous:')
+#for i,a in enumerate(amor_pos):
+#    print(i, len(a))
+
+fig, ax = plot_fig(points_pos, align_pos, box, colormode='grad')
+plt.show()
+sys.exit()
+fig_crys, ax_crys = plot_fig(crys_pos, align_crys, box, fig=None, ax=None, writemode='write', colormode='mono', colorid=0)
+fig_crysamor, ax_crysamor = plot_fig(amor_pos, align_amor, box, fig=fig_crys, ax=ax_crys, writemode='append', colormode='mono', colorid=0.60)
+plt.show()
