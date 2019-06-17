@@ -394,9 +394,9 @@ class MDConductor:
                     r0 = float(columns[3])
                     d = float(columns[4])
             print('flat-bottom restraint added particle-{0:d} and particle-{1:d}.'.format(atom_index_i, atom_index_j))
-            print('k:{0:8.5f}\tr0:{1:5.3f}\t{2:5.3f}'.format(k, r0,d))
+            print('k:{0:8.5f}\tr0:{1:5.3f}\t{2:5.3f}'.format(k, r0, d))
             flat_bottom_force.addBond(
-            atom_index_i, atom_index_j, [r0, k])
+            atom_index_i, atom_index_j, [r0, k, d])
 
         system.addForce(flat_bottom_force)
 
