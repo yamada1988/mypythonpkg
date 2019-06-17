@@ -60,7 +60,8 @@ def plot_fig(grid, vec, box_, fig=None, ax=None, writemode='write', colormode='g
             color_[i] = cm.hsv(float(i)/N)
     elif colormode == 'mono':
         for i in range(N):
-            color_[i] = cm.hsv(float(colorid)/N)
+            color_[i] = cm.hsv(float(colorid))
+
     for i in range(N):
          # Make the grid
          try:
@@ -69,7 +70,7 @@ def plot_fig(grid, vec, box_, fig=None, ax=None, writemode='write', colormode='g
              continue
          # Make the direction data for the arrows
          u,v,w = tuple(map(unit_vector, (vec[i][:,0], vec[i][:,1], vec[i][:,2])))
-         ax.quiver(x, y, z, u, v, w, length=0.10, normalize=True, color=color_[i])
+         ax.quiver(x, y, z, u, v, w, length=0.1, normalize=True, color=color_[i])
 
     return fig, ax
 
@@ -93,91 +94,71 @@ def make_gridvec(ls, pos, align):
 
     return g, v
 
-
-def write_pointsdirc(p, a):
-    outgro = sysgro.split('com')[0] + 'director.gro'
-    resnum = 1
-    print(len(p), len(p[0]))
-    numatm = len(p)*len(p[0])
-    with open(outgro, 'wt') as f:
-        l = 'dirgro\n{0:8d}\n'.format(numatm)
-        f.write(l)
-        for i,pi in enumerate(p):
-            for ii,pii in enumerate(pi):
-                l = '{0:5d}PE_20   c3{1:5d}'.format(resnum, ((resnum-1)*len(p[0])+ii)% 99999 + 1) \
-                    + '{0:8.3f}{1:8.3f}{2:8.3f}{3:8.3f}{4:8.3f}{5:8.3f}\n'.format(pii[0], pii[1], pii[2], a[i][ii,0], a[i][ii,1],a[i][ii,2])
-                f.write(l)
-            resnum += 1
-        l = '{0:6.4f}\t{0:6.4f}\t{0:6.4f}\n'.format(box)
-        f.write(l)
-
-sysgro = './system0001_com.gro'
+sysgro = './system_director.gro'
 Nchain = 100
-Nmol = 100
+comgro = sysgro.split('_director.gro')[0] + '_com.gro'
 d0 = 0.450 #nm
 
-t = md.load(sysgro)
-pos = t.xyz
-top = t.topology
-df, b = top.to_dataframe()
-pos = t.xyz
-box = t.unitcell_lengths[0,0]
+with open(sysgro, 'rt') as f:
+    align_pos = np.array([np.array(list(map(float, line[44:].split()[0:3]))) for line in f if len(line) >= 48])
+    f.seek(0)
+    lines = f.readlines()
 
-df['x'] = pos[0,:,0]
-df['y'] = pos[0,:,1]
-df['z'] = pos[0,:,2]
+Ncom = 0
+for l in lines:
+    if ' 1PE' in l:
+        Ncom += 1
 
-com = ['' for i in range(Nchain)]
-indexes = ['' for i in range(Nchain)]
-com_pos = ['' for i in range(Nchain)]
-for j in range(Nchain):
-    com_ = df[df['name'] == 'c3' ]
-    com[j] = com_[com_['resSeq'] == j+1]
-    indexes[j] = np.array(com[j].index)
-    com_pos[j] = pos[0][indexes[j]]
+align_pos = align_pos.reshape(Nchain, Ncom, 3)
 
-Ncom = len(com_pos[0])
+with open(comgro, 'rt') as f:
+    com_pos = np.array([np.array(list(map(float, line[22:].split()[0:3]))) for line in f if len(line) >= 28])
+    f.seek(0)
+    boxes = f.readlines()[-1].split()
+
+
+points_pos = ['' for i in range(Nchain)]
+com_pos = com_pos.reshape(Nchain, Ncom+1, 3)
+for i in range(Nchain):
+    points_pos[i] = ['' for k in range(Ncom)]
+    for k in range(Ncom):
+       points_pos[i][k] = com_pos[i][k]
+
+points_pos = np.array(points_pos)
+box = float(boxes[0])
+
 xyz = ['x', 'y', 'z']
 
-align_pos = ['' for i in range(Nchain)]
+# PBC treatment for align_pos
 for i in range(Nchain):
-    align_pos[i] = np.array([[0.0e0 for k in xyz] for j in range(Ncom-1)])
-    for l in range(Ncom-1):
-        align_pos[i][l] = com_pos[i][l+1]-com_pos[i][l]
-
-    # PBC treatment
     for k in range(len(xyz)):
         TorF = com_pos[i][:,k]>box
         tof0 = TorF[0]
         co = 0
         for tof_ in TorF:
             if tof_ == True:
-                com_pos[i][co,k] -= box
+                points_pos[i][co,k] -= box
             if tof_ != tof0:
                 align_pos[i][co-1] = np.zeros(3)
                 tof0 = tof_
             co += 1
+            if co == Ncom:
+                break
  
         TorF = com_pos[i][:,k]<0.0
         tof0 = TorF[0]
         co = 0
         for tof_ in TorF:
             if tof_ == True:
-                com_pos[i][co,k] += box
+                points_pos[i][co,k] += box
             if tof_ != tof0:
                 align_pos[i][co-1] = np.zeros(3)
                 tof0 = tof_
             co += 1
+            if co == Ncom:
+                break
  
 
-points_pos = ['' for i in range(Nchain)]
-for i in range(Nchain):
-    points_pos[i] = np.array([np.array([0.0e0 for k in ['x', 'y', 'z']]) for j in range(Ncom-1)])
-    for l in range(Ncom-1):
-        points_pos[i][l] = 0.50e0*(com_pos[i][l+1]+com_pos[i][l])
-        #print(l, points_pos[i][l], align_pos[i][l])
-
-write_pointsdirc(points_pos, align_pos)
 
 crys_list = []
 crys_pos = [[] for i in range(Nchain)]
@@ -189,6 +170,7 @@ success = [0]
 count = 0
 for i in range(Nchain):
     #ls = [s for s in range(Ncom-1)]
+    print('i:', i)
     for j in range(i+1,Nchain):
         for l0 in range(len(points_pos[i])):
             for l in range(len(points_pos[i])):
@@ -229,17 +211,11 @@ amor_pos, align_amor = make_gridvec(amor_list, points_pos, align_pos)
 for ith, th in enumerate(ths):
    print(th, float(success[ith])/float(count), count)
 
-#print('crystalline:')
-#for i,c in enumerate(crys_pos):
-#    print(i,len(c))
 
-#print('amorphous:')
-#for i,a in enumerate(amor_pos):
-#    print(i, len(a))
-
-fig, ax = plot_fig(points_pos, align_pos, box, colormode='grad')
-plt.show()
-sys.exit()
-fig_crys, ax_crys = plot_fig(crys_pos, align_crys, box, fig=None, ax=None, writemode='write', colormode='mono', colorid=0)
+#fig, ax = plot_fig(points_pos, align_pos, box, colormode='grad')
+#plt.show()
+#sys.exit()
+fig_crys, ax_crys = plot_fig(crys_pos, align_crys, box, fig=None, ax=None, writemode='write', colormode='mono', colorid=0.0)
+#fig_amor, ax_amor = plot_fig(amor_pos, align_amor, box, fig=None, ax=None, writemode='write', colormode='mono', colorid=0.50)
 fig_crysamor, ax_crysamor = plot_fig(amor_pos, align_amor, box, fig=fig_crys, ax=ax_crys, writemode='append', colormode='mono', colorid=0.60)
 plt.show()
