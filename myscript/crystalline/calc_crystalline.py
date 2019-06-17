@@ -94,13 +94,13 @@ def make_gridvec(ls, pos, align):
 
     return g, v
 
-sysgro = './system_director.gro'
-Nchain = 100
+sysgro = './md_run_director.gro'
+Nchain = 72
 comgro = sysgro.split('_director.gro')[0] + '_com.gro'
 d0 = 0.450 #nm
 
 with open(sysgro, 'rt') as f:
-    align_pos = np.array([np.array(list(map(float, line[44:].split()[0:3]))) for line in f if len(line) >= 48])
+    align_pos = np.array([np.array(list(map(float, line.split()[6:9]))) for line in f if len(line) >= 48])
     f.seek(0)
     lines = f.readlines()
 
@@ -112,10 +112,9 @@ for l in lines:
 align_pos = align_pos.reshape(Nchain, Ncom, 3)
 
 with open(comgro, 'rt') as f:
-    com_pos = np.array([np.array(list(map(float, line[22:].split()[0:3]))) for line in f if len(line) >= 28])
+    com_pos = np.array([np.array(list(map(float, line.split()[3:6]))) for line in f if len(line) >= 28])
     f.seek(0)
     boxes = f.readlines()[-1].split()
-
 
 points_pos = ['' for i in range(Nchain)]
 com_pos = com_pos.reshape(Nchain, Ncom+1, 3)
@@ -170,7 +169,6 @@ success = [0]
 count = 0
 for i in range(Nchain):
     #ls = [s for s in range(Ncom-1)]
-    print('i:', i)
     for j in range(i+1,Nchain):
         for l0 in range(len(points_pos[i])):
             for l in range(len(points_pos[i])):
@@ -212,10 +210,10 @@ for ith, th in enumerate(ths):
    print(th, float(success[ith])/float(count), count)
 
 
-#fig, ax = plot_fig(points_pos, align_pos, box, colormode='grad')
-#plt.show()
-#sys.exit()
-fig_crys, ax_crys = plot_fig(crys_pos, align_crys, box, fig=None, ax=None, writemode='write', colormode='mono', colorid=0.0)
-#fig_amor, ax_amor = plot_fig(amor_pos, align_amor, box, fig=None, ax=None, writemode='write', colormode='mono', colorid=0.50)
-fig_crysamor, ax_crysamor = plot_fig(amor_pos, align_amor, box, fig=fig_crys, ax=ax_crys, writemode='append', colormode='mono', colorid=0.60)
+fig, ax = plot_fig(points_pos, align_pos, box, colormode='grad')
 plt.show()
+sys.exit()
+#fig_crys, ax_crys = plot_fig(crys_pos, align_crys, box, fig=None, ax=None, writemode='write', colormode='mono', colorid=0.0)
+#fig_amor, ax_amor = plot_fig(amor_pos, align_amor, box, fig=None, ax=None, writemode='write', colormode='mono', colorid=0.50)
+#fig_crysamor, ax_crysamor = plot_fig(amor_pos, align_amor, box, fig=fig_crys, ax=ax_crys, writemode='append', colormode='mono', colorid=0.60)
+#plt.show()
