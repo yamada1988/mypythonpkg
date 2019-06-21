@@ -2,8 +2,23 @@ import numpy as np
 import pickle
 from joblib import Parallel, delayed
 from scipy import interpolate
+from optparse import OptionParser
 import os
 import sys
+
+parser = OptionParser()
+
+# topology, mandatory
+parser.add_option("-s", "--sysdir", dest = "sysdir",
+                  help = "workdir name",
+                  default = None)
+
+parser.add_option("-g", "--gr", dest = "gr",
+                  help = "calccgr or not", 
+                  default = None)
+                     
+(options, args) = parser.parse_args()
+
 
 def load_dumps(f):
     obj = []
@@ -56,12 +71,10 @@ def write_intlist(it_, rm, outdir, obj):
             pickle.dump(obj, f)
 
 
-args = sys.argv
-mode = args[1].split('-')[1]
 
-pdir = 'npt_r_gpu_pickles/'
-posb = pdir + 'box.pickle'
-posc = pdir + 'com_pos.pickle'
+pdir = options.sysdir
+posb = pdir + '/box.pickle'
+posc = pdir + '/com_pos.pickle'
 dr = 0.010 #nm
 L = 20.0 #nm
 Lh = L/2.0 #nm
@@ -92,10 +105,7 @@ for it in range(Frames):
     d_pos -= np.trunc(d_pos/(box/2.0))
     d = np.sqrt(np.sum(d_pos**2.0, axis=4))
 
-    if mode in ['gs', 'sg']:
-        # Serial calculation
-        gr = [float(np.count_nonzero((r<=d) & (d<r+dr)))/(rho*4.0/3.0*np.pi*r**3.0*dr*N/2.0e0) for r in r_]
-    elif mode in ['gp', 'pg']:
+    if options.gr:
         # Parallel calulation
         result = Parallel(n_jobs=-1, verbose=10, backend="threading")([delayed(calc_gr)(r, dr, d, N, rho) for r in r_] )
         a = np.array(result)
@@ -104,7 +114,7 @@ for it in range(Frames):
             print(r, grs[it][ir])
     ds[it] = d
 
-if'g' in mode:
+if options.gr:
     gr = np.array([0.0 for r in r_])
     for ir, r in enumerate(r_):
        for it in range(Frames):
