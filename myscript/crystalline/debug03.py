@@ -1,7 +1,23 @@
 import numpy as np
 import pickle
+from optparse import OptionParser
 import os
 import sys
+
+parser = OptionParser()
+
+# topology, mandatory
+parser.add_option("-s", "--sysdir", dest = "sysdir",
+                  help = "workdir name",
+                  default = None)
+
+parser.add_option("-m", "--mode", dest = "mode",
+                   help = "calculation mode",
+                   default = None)
+                   
+  
+(options, args) = parser.parse_args()
+
 
 def load_dumps(f):
     obj = []
@@ -45,12 +61,8 @@ def write_dircinfo(fname, pose):
     with open(fname, mode='ab') as f:
         pickle.dump(pose, f)
 
-args = sys.argv
-mode = args[1].split('-')[1]
-if mode not in ['I', 'i', 'inst', 'Inst', 'ins', 'Ins', 'A', 'a', 'ave', 'Ave']:
-    sys.exit('Choose -a or -i.')
-
-pdir = 'npt_r_gpu_pickles/'
+mode = options.mode
+pdir = options.sysdir
 posb = pdir + 'box.pickle'
 posc = pdir + 'com_pos.pickle'
 posd = pdir + 'dirc_pos.pickle'
@@ -123,3 +135,4 @@ for it in range(Frames):
             except ZeroDivisionError:
                 order_prm[i][l] = 0.050 
     write_dircinfo(outf, order_prm) 
+
