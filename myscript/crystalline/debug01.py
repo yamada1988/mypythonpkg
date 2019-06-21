@@ -97,112 +97,113 @@ sysgro = './system_300.gro'
 
 
 it = 1
-for t in md.iterload(sysxtc, top=sysgro):
-    if it > Frames:
-        break
-    print('{0:>5d}/{1:>5d})'.format(it, Frames))
-    pos = t.xyz
-    top = t.topology
-    df, b = top.to_dataframe()
-    pos = t.xyz
-    box = t.unitcell_lengths[0,0]
-
-    df['x'] = pos[0,:,0]
-    df['y'] = pos[0,:,1]
-    df['z'] = pos[0,:,2]
-
-    c3s = ['' for i in range(Nchain)]
-    indexes = ['' for i in range(Nchain)]
-    c3s_pos = ['' for i in range(Nchain)]
-    for j in range(Nchain):
-        c3sj = df[df['name'] == 'c3' ]
-        c3s[j] = c3sj[c3sj['resSeq'] == j+1]
-        indexes[j] = np.array(c3s[j].index)
-        c3s_pos[j] = pos[0][indexes[j]]
-
-    # Check PBC treatment 
-    if it == 1:
-        wrap_mode = judge_wrapped(c3s_pos)
-        if wrap_mode == 0:
-            print('wrapped.')
-        elif wrap_mode == 1:
-            print('unwrapped.')
-
-
-    xyz = ['x', 'y', 'z']
-    com_pos = ['' for i in range(Nchain)]
-    for i in range(Nchain):
-        com_pos[i] = np.array([np.array([0.0e0 for k in xyz]) for j in range(2*Nmon-1)])
-        if wrap_mode == 0:
-            for l in range(len(c3s_pos[i])-1):
-                print(i, l)
-                print(c3s_pos[i][l+1])
-                #print(c3s_pos[i][l])
-                TorF1 = c3s_pos[i][l+1]-c3s_pos[i][l] > box/2.0
-                scale = np.array([-1.0*int(x) for x in TorF1])
-                b =  c3s_pos[i][l+1] + box*scale
-                print(TorF1, scale)
-                TorF2 = c3s_pos[i][l+1]-c3s_pos[i][l] < -1.0*box/2.0
-                scale = np.array([int(x) for x in TorF2])
-                b += + box*scale
-                print(TorF2, scale)
-                com_pos[i][l] = 0.50e0*(b+c3s_pos[i][l])
-                print(b)
-                print(c3s_pos[i][l])
-                print(com_pos[i][l])
-
-        elif wrap_mode == 1:
-            for l in range(len(c3s_pos[i])-1):
-                com_pos[i][l] = 0.50e0*(c3s_pos[i][l+1]+c3s_pos[i][l])
-        Ncom = len(com_pos[0])
-
-    dirc_pos = ['' for i in range(Nchain)]
-    for i in range(Nchain):
-        dirc_pos[i] = np.array([np.array([0.0e0 for k in xyz]) for j in range(Ncom-1)])
-        if wrap_mode == 0:
-            for l in range(Ncom-1):
-                #print(i, l)
-                #print(com_pos[i][l+1])
-                TorF1 = com_pos[i][l+1]-com_pos[i][l] > box/2.0
-                scale = np.array([-1.0*int(x) for x in TorF1])
-                #print(TorF1, scale)
-                b = com_pos[i][l+1] + box * scale
-                TorF2 = com_pos[i][l+1]-com_pos[i][l] < -1.0*box/2.0
-                scale = np.array([int(x) for x in TorF2])
-                #print(TorF2, scale)
-                b += + box * scale
-                dirc_pos[i][l] = (b - com_pos[i][l])
-                #print(b)
-                #print(com_pos[i][l])
-                #print(dirc_pos[i][l])
-        elif wrap_mode == 1:
-            for l in range(Ncom-1):    
-                dirc_pos[i][l] = (com_pos[i][l+1]-com_pos[i][l])
-
-    if wrap_mode == 1:
+for ts in md.iterload(sysxtc, top=sysgro):
+    for t in ts:
+        if it > Frames:
+            break
+        print('{0:>5d}/{1:>5d})'.format(it, Frames))
+        pos = t.xyz
+        top = t.topology
+        df, b = top.to_dataframe()
+        pos = t.xyz
+        box = t.unitcell_lengths[0,0]
+    
+        df['x'] = pos[0,:,0]
+        df['y'] = pos[0,:,1]
+        df['z'] = pos[0,:,2]
+    
+        c3s = ['' for i in range(Nchain)]
+        indexes = ['' for i in range(Nchain)]
+        c3s_pos = ['' for i in range(Nchain)]
+        for j in range(Nchain):
+            c3sj = df[df['name'] == 'c3' ]
+            c3s[j] = c3sj[c3sj['resSeq'] == j+1]
+            indexes[j] = np.array(c3s[j].index)
+            c3s_pos[j] = pos[0][indexes[j]]
+    
+        # Check PBC treatment 
+        if it == 1:
+            wrap_mode = judge_wrapped(c3s_pos)
+            if wrap_mode == 0:
+                print('wrapped.')
+            elif wrap_mode == 1:
+                print('unwrapped.')
+    
+    
+        xyz = ['x', 'y', 'z']
+        com_pos = ['' for i in range(Nchain)]
         for i in range(Nchain):
-            # PBC treatment
-            for k in range(len(xyz)):
-                TorF = com_pos[i][:,k]>box
-                tof0 = TorF[0]
-                co = 0
-                print(i,TorF)
-                for tof_ in TorF:
-                     if tof_ == True:
-                         com_pos[i][co,k] -= box
-                     if tof_ != tof0:
-                         tof0 = tof_
-                     co += 1
-
-                TorF = com_pos[i][:,k]<0.0
-                tof0 = TorF[0]
-                co = 0
-                for tof_ in TorF:
-                    if tof_ == True:
-                        com_pos[i][co,k] += box
-                    if tof_ != tof0:
-                        tof0 = tof_
-                    co += 1
- 
-    write_comdirc(it, box, com_pos, dirc_pos)
-    it += 1
+            com_pos[i] = np.array([np.array([0.0e0 for k in xyz]) for j in range(2*Nmon-1)])
+            if wrap_mode == 0:
+                for l in range(len(c3s_pos[i])-1):
+                    print(i, l)
+                    print(c3s_pos[i][l+1])
+                    #print(c3s_pos[i][l])
+                    TorF1 = c3s_pos[i][l+1]-c3s_pos[i][l] > box/2.0
+                    scale = np.array([-1.0*int(x) for x in TorF1])
+                    b =  c3s_pos[i][l+1] + box*scale
+                    print(TorF1, scale)
+                    TorF2 = c3s_pos[i][l+1]-c3s_pos[i][l] < -1.0*box/2.0
+                    scale = np.array([int(x) for x in TorF2])
+                    b += + box*scale
+                    print(TorF2, scale)
+                    com_pos[i][l] = 0.50e0*(b+c3s_pos[i][l])
+                    print(b)
+                    print(c3s_pos[i][l])
+                    print(com_pos[i][l])
+    
+            elif wrap_mode == 1:
+                for l in range(len(c3s_pos[i])-1):
+                    com_pos[i][l] = 0.50e0*(c3s_pos[i][l+1]+c3s_pos[i][l])
+            Ncom = len(com_pos[0])
+    
+        dirc_pos = ['' for i in range(Nchain)]
+        for i in range(Nchain):
+            dirc_pos[i] = np.array([np.array([0.0e0 for k in xyz]) for j in range(Ncom-1)])
+            if wrap_mode == 0:
+                for l in range(Ncom-1):
+                    #print(i, l)
+                    #print(com_pos[i][l+1])
+                    TorF1 = com_pos[i][l+1]-com_pos[i][l] > box/2.0
+                    scale = np.array([-1.0*int(x) for x in TorF1])
+                    #print(TorF1, scale)
+                    b = com_pos[i][l+1] + box * scale
+                    TorF2 = com_pos[i][l+1]-com_pos[i][l] < -1.0*box/2.0
+                    scale = np.array([int(x) for x in TorF2])
+                    #print(TorF2, scale)
+                    b += + box * scale
+                    dirc_pos[i][l] = (b - com_pos[i][l])
+                    #print(b)
+                    #print(com_pos[i][l])
+                    #print(dirc_pos[i][l])
+            elif wrap_mode == 1:
+                for l in range(Ncom-1):    
+                    dirc_pos[i][l] = (com_pos[i][l+1]-com_pos[i][l])
+    
+        if wrap_mode == 1:
+            for i in range(Nchain):
+                # PBC treatment
+                for k in range(len(xyz)):
+                    TorF = com_pos[i][:,k]>box
+                    tof0 = TorF[0]
+                    co = 0
+                    print(i,TorF)
+                    for tof_ in TorF:
+                         if tof_ == True:
+                             com_pos[i][co,k] -= box
+                         if tof_ != tof0:
+                             tof0 = tof_
+                         co += 1
+    
+                    TorF = com_pos[i][:,k]<0.0
+                    tof0 = TorF[0]
+                    co = 0
+                    for tof_ in TorF:
+                        if tof_ == True:
+                            com_pos[i][co,k] += box
+                        if tof_ != tof0:
+                            tof0 = tof_
+                        co += 1
+     
+        write_comdirc(it, box, com_pos, dirc_pos)
+        it += 1
