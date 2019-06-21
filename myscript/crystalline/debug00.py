@@ -34,6 +34,11 @@ parser.add_option("-m", "--mon", dest = "monnum",
                   help = "monomer num for backbone",
                   default = None)
 
+parser.add_option("-s", "--skp", dest = "skpcnf",
+                  help = "skip num of configurations",
+                  default = 0)
+                     
+
 # "#define"s.
 parser.add_option("-D", dest = "defines", action="append",
                   help="Defined attributes",
@@ -48,10 +53,6 @@ parser.add_option("--no-auto-dir-search", dest = "auto_dir_search", action = "st
                   help = "Stop default DIR searching.", 
                   default = True)
 
-# can be specified; otherwise specify interactively
-parser.add_option("-s", "--solute", dest = "solute",
-                  help = "Molecular type of solute molecule (comma separated for multiple choice)",
-                  default = None)
 
 parser.add_option("-v", "--verbose", dest = "verbose", action = "store_true",
                   help = "Increase verbosity (for debug)",
@@ -409,16 +410,13 @@ def get_topology_info():
     mollist = [s for (s, _n) in top.system]
 
     # python 2.3 does not have set()
-    if options.solute:
-        solutes = options.solute.split(',')
-    else:
-        # interactive input
-        print "Molecule types in topology file:",
-        for s in mollist:
-            print s,
-        print
-        l = raw_input("Which molecules are solutes? (For multiple choice please specify as comma-separated list) ").split(',')
-        solutes = [x.strip() for x in l]
+    # interactive input
+    print "Molecule types in topology file:",
+    for s in mollist:
+        print s,
+    print
+    l = raw_input("Which molecules are solutes? (For multiple choice please specify as comma-separated list) ").split(',')
+    solutes = [x.strip() for x in l]
 
     for s in solutes:
         if s not in mollist:
@@ -641,13 +639,14 @@ def parse_mdp():
     return frames
     
 frames = parse_mdp()
-
+skpcnf = options.skpcnf
 # update MDinfo
 if frames:
     ifh = open("MDinfo", "rt")
     ofh = open("MDinfo.new", "wt")
     l = ifh.next().split()
     print >> ofh, frames, l[1]
+    print >> ofh, skpcnf
     print >> ofh, ifh.next().strip()
     print >> ofh, ifh.next().strip()
     ifh.close()
