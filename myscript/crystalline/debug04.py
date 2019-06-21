@@ -1,10 +1,30 @@
 import numpy as np
 import pickle
+import matplotlib
+matplotlib.use('Qt4Agg')
+from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
-import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from optparse import OptionParser
 import os
 import sys
+
+parser = OptionParser()
+
+# topology, mandatory
+parser.add_option("-s", "--sysdir", dest = "sysdir",
+                  help = "workdir name",
+                  default = None)
+
+parser.add_option("-m", "--mode", dest = "mode",
+                   help = "calculation mode",
+                   default = None)
+                   
+  
+(options, args) = parser.parse_args()
+
+
+
 
 def load_dumps(f):
     obj = []
@@ -24,12 +44,11 @@ def write_dircinfo(fname, pose):
     with open(fname, mode='ab') as f:
         pickle.dump(pose, f)
 
-args = sys.argv
-fmode = args[1].split('-')[1]
+fmode = options.mode
 if fmode not in ['I', 'i', 'inst', 'Inst', 'ins', 'Ins', 'A', 'a', 'ave', 'Ave']:
     sys.exit('Choose -a or -i.')
 
-pdir = 'npt_r_gpu_pickles/'
+pdir = options.sysdir
 posb = pdir + 'box.pickle'
 posc = pdir + 'com_pos.pickle'
 posd = pdir + 'dirc_pos.pickle'
@@ -49,6 +68,11 @@ with open(posc, 'rb') as f:
     com_pos = load_dumps(f)
 with open(posd, 'rb') as f:
     dirc_pos = load_dumps(f)
+
+
+if not os.path.exists(pdir+'/eps'):
+    os.mkdir(pdir+'/eps')
+
 
 print(order_prm[0])
 del order_prm[0]
@@ -94,11 +118,11 @@ def plot_fig(grid, vec, o_prm, box_, cmode='ordered'):
 for it in range(Frames):
     for i in range(Nchain):
         for l in range(Ncom-1):
-            if order_prm[it][i][l] < 0.10:
-                order_prm[it][i][l] = 0.10e0
+            if order_prm[it][i][l] < 0.0e0:
+                order_prm[it][i][l] = 0.05e0
 
 for it in range(Frames):
     fig, ax = plot_fig(com_pos[it], dirc_pos[it], order_prm[it], boxes[it])
-    figname = pdir + 'order_parameter{0:04d}.eps'.format(it)
+    figname = pdir + '/eps/order_parameter{0:04d}.eps'.format(it)
     plt.savefig(figname)
-    plt.show()
+    #plt.show()
