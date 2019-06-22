@@ -88,7 +88,7 @@ for it in range(Frames):
     rho = N/(box**3)
     c_pos = np.array(com_pos[it])
     d_pos = c_pos[:,:,np.newaxis, np.newaxis] - c_pos[np.newaxis, np.newaxis, :, :]
-    d_pos -= np.trunc(d_pos/(box/2.0))
+    d_pos -= box*np.trunc(d_pos/(box/2.0))
     d = np.sqrt(np.sum(d_pos**2.0, axis=4))
 
     if mode in ['gs', 'sg']:
