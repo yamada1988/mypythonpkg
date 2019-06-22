@@ -102,7 +102,7 @@ for it in range(Frames):
     rho = N/(box**3)
     c_pos = np.array(com_pos[it])
     d_pos = c_pos[:,:,np.newaxis, np.newaxis] - c_pos[np.newaxis, np.newaxis, :, :]
-    d_pos -= np.trunc(d_pos/(box/2.0))
+    d_pos -= box*np.trunc(d_pos/(box/2.0))
     d = np.sqrt(np.sum(d_pos**2.0, axis=4))
 
     if options.gr:
@@ -145,7 +145,7 @@ if options.gr:
     # not clustered
     d_ = r_sp[minId][0][minid]
     # clustered
-    d_ = 1.0
+    d_ = 0.80
 
     print('gsp-max:', gmax)
     print('maxid-sp:', maxid)
@@ -159,11 +159,11 @@ if options.gr:
     write_rdf(d_, r_sp, gr_sp, pdir, fname='rdf-spline3d.xvg')
 
 #clustered
-d_ = 1.0
+d_ = 0.80
 
 # truncate intlist[r>d]
 for it,d in enumerate(ds):
     print('it:', it)
-    inds = np.where( (0.20<d) & (d<d_))
+    inds = np.where( (0.10<d) & (d<d_))
     intlist = zip(*inds)
     write_intlist(it, d_, pdir, intlist)
