@@ -31,6 +31,13 @@ class Cell:
         self.intlist = []
         self.box = Lbox
 
+    def gen_subcell(self, ncell=10):
+        self.poreindex = []
+        self.ds = float(self.size[0]) / ncell
+        x0, y0, z0 = self.pos[0], self.pos[1], self.pos[2]
+        self.subpos = np.array([[[[x0+ix*ds, y0+iy*ds, z0+iz*ds] for iz in range(ncell)] for iy in range(ncell)] for ix in range(ncell)], dtype=np.float32)
+
+
     def load_intlist(self, ilist):
         nl = [inb for inb in self.neighbor_index3d]
         for n in nl:
@@ -39,11 +46,13 @@ class Cell:
             self.intlist += [i for i in ilist[n[0], n[1], n[2]]]
 
     def gen_subcell(self, ncell=10):
+        self.poreindex = []
         self.ds = float(self.size[0]) / ncell
         x0, y0, z0 = self.pos[0], self.pos[1], self.pos[2]
         self.subpos = np.array([[[[x0+ix*ds, y0+iy*ds, z0+iz*ds] for iz in range(ncell)] for iy in range(ncell)] for ix in range(ncell)], dtype=np.float32)
 
     def calc_pore(self, pos, vdwradii):
+        print(self.id)
         atm_pos = pos[self.intlist]
         d_pos = self.subpos[:,:,:,np.newaxis] - atm_pos[np.newaxis,:]
         d_pos -= self.box*np.trunc(d_pos/(self.box*0.50e0))
@@ -51,7 +60,7 @@ class Cell:
         vdw_test = self.ds * 0.50
         drc = vdw_test + vdwradii
         ind_dc = np.where(dc < drc)[0:3]
-        self.poreindex = list(set(list(zip(*ind_dc))))
+        self.poreindex.append(list(set(list(zip(*ind_dc)))))
         
 
 
@@ -60,7 +69,6 @@ vdw_table = {'c3': 0.170, 'hc':0.120, 'oh':0.152}
 vdw_test = 0.050
 
 fname = 'npt03_0001.gro'
-
 t = md.load(fname)
 top = t.topology
 c3_inds = top.select("name c3")
@@ -97,11 +105,11 @@ def make_intlist(pos_, dl, nx, ny, nz, origin):
 
 print('make_intlist:')
 orig = np.array([0.0, 0.0, zl])
-intlist = make_intlist(pos_c3, 1.0, Nx, Ny, Nz, orig)
-for i,c in enumerate(Cells):
-    if i == 0:
-        print(c.id, c.index)
-        print(intlist[c.ix, c.iy, c.iz])
+intlist = make_intlist(pos_c3, dl, Nx, Ny, Nz, orig)
+#for i,c in enumerate(Cells):
+#    if i == 0:
+#        print(c.id, c.index)
+#        print(intlist[c.ix, c.iy, c.iz])
  
 
 # load intlist to each cell class
@@ -111,6 +119,10 @@ for i,c in enumerate(Cells):
 
 [c.gen_subcell() for c in Cells]
 
-[c.calc_pore(pos_c3, vdw_table['c3']) for c in Cells]
-print(Cells[0].poreindex)
+pores = [c.calc_pore(pos_c3, vdw_table['c3']) for c in Cells]
+npore = 0
+for i,c in enumerate(Cells):
+    print(i, c.poreindex, len(c.poreindex))
+    npore += len(c.poreindex)
+print(npore)
 sys.exit()
