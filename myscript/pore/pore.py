@@ -5,8 +5,46 @@ from mpl_toolkits.mplot3d import Axes3D
 import sys
 import time
 
+class System:
+    def __init__(self, dl, Nx, Ny, Nz, box, xl, yl, zl, pbc):
+        self.cells = np.array([Cell([i,j,k], [dl,dl,dl], [Nx,Ny,Nz], box, x0=xl, y0=yl, z0=zl, pbc=pbc) for k in range(Nz) for j in range(Ny) for i in range(Nx)])
+        self.dl = dl
+        self.Nx = Nx
+        self.Ny = Ny
+        self.Nz = Nz
+        self.origin = np.array([xl, yl, zl])
+
+
+    def make_intlist(self, posinfo):
+        self.posinfo = posinfo
+        self.intlist_dict = {}
+        for pname, pos_ in self.posinfo.items():
+            b = np.trunc((pos_ - self.origin)/self.dl)
+            self.intlist_dict[pname] = np.array([[[np.where((b[:,0] == i) & (b[:,1] == j) & (b[:,2] == k))[0] 
+                                               for k in range(self.Nz)] for j in range(self.Ny)] for i in range(self.Nx)])
+    
+    def load_intlist(self):
+        [c.load_intlist(self.intlist_dict) for c in self.cells]
+
+    def calc_occupiedself):
+        [c.gen_subcell() for c in self.cells]
+        self.subposes = np.array([np.array(c.subpos) for c in self.cells])
+        [c.calc_pore(self.posinfo) for c in self.cells]
+        self.occupied_indexes = [zip(*c.occupied_index) for c in self.cells]
+
+
+    def get_cellinfo(self):
+        for i,c in enumerate(self.cells):
+            print(i, c)
+            print('volume:', c.volume)
+            print('index:', c.index)
+            print('pos:', c.pos)
+            print('neighbor index3d:', c.neighbor_index3d)
+            print('neighbor index:', c.neighbor_index)
+
 
 class Cell:
+    vdw_table = {'c3': 0.170, 'hc':0.120, 'oh':0.152}
     def __init__(self, index, size, nlims, Lbox, x0=0.0, y0=0.0, z0=0.0, pbc='xyz'):
         self.id = index[2] * nlims[1]*nlims[0] + index[1]*nlims[0] + index[0] 
         self.ix, self.iy, self.iz = index[0], index[1], index[2]
@@ -32,30 +70,51 @@ class Cell:
         self.box = Lbox
 
     def gen_subcell(self, ncell=10):
-        self.poreindex = []
+        self.pore_index = np.array([[i,j,k] for k in range(self.nzlim) for j in range(self.nylim) for i in range(self.nxlim)])
         self.ds = float(self.size[0]) / ncell
         x0, y0, z0 = self.pos[0], self.pos[1], self.pos[2]
         self.subpos = np.array([[[[x0+ix*ds, y0+iy*ds, z0+iz*ds] for iz in range(ncell)] for iy in range(ncell)] for ix in range(ncell)], dtype=np.float32)
 
 
-    def load_intlist(self, ilist):
+    def load_intlist(self, ilist_dict):
         nl = [inb for inb in self.neighbor_index3d]
-        for n in nl:
-            #print(n)
-            #print([i for i in ilist[n[0], n[1], n[2]]])
-            self.intlist += [i for i in ilist[n[0], n[1], n[2]]]
+        #print(nl)
+        self.intlist_dict = {}
+        for pname, ilist in ilist_dict.items():
+            self.intlist_dict[pname] = []
+            for n in nl:
+                #print(n)
+                #print([i for i in ilist_dict[pname][n[0], n[1], n[2]]])
+                self.intlist_dict[pname] += [i for i in ilist[n[0], n[1], n[2]]]
+        #print(self.id, self.intlist_dict)
 
-    def calc_pore(self, pos, vdwradii):
+    def get_uniques(self, seqs):
+        seen = []
+        for seq in seqs:
+            for x in seq:
+                if x not in seen:
+                    seen.append(x)
+        return seen
+
+    def calc_occupied(self, posinfo):
+        self.occupied_index = []
         print(self.id)
-        atm_pos = pos[self.intlist]
-        d_pos = self.subpos[:,:,:,np.newaxis] - atm_pos[np.newaxis,:]
-        d_pos -= self.box*np.trunc(d_pos/(self.box*0.50e0))
-        dc = np.sqrt(np.sum(d_pos**2, axis=4))
-        vdw_test = self.ds * 0.50
-        drc = vdw_test + vdwradii
-        ind_dc = np.where(dc < drc)[0:3]
-        self.poreindex.append(list(set(list(zip(*ind_dc)))))
-        
+        #print(self.intlist_dict)
+        ind_d = {}
+        for pname, pos in posinfo.items():
+            atm_pos = pos[self.intlist_dict[pname]]
+            d_pos = self.subpos[:,:,:,np.newaxis] - atm_pos[np.newaxis,:]
+            d_pos -= self.box*np.trunc(d_pos/(self.box*0.50e0))
+            d = np.sqrt(np.sum(d_pos**2, axis=4))
+            vdw_test = self.ds * 0.50
+            datm = vdw_test + vdw_table[pname]
+            ind_d[pname] = np.where(d < datm)[0:3]
+            ind_d[pname] = list(set(list(zip(*ind_d[pname]))))
+            #print(pname, ind_d[pname])
+            self.occupied_index.append(ind_d[pname])
+        #print(self.occupied_index)
+        self.occupied_index = self.get_uniques(self.occupied_index)
+        #print(len(self.occupied_index))
 
 
 # unit:nm
@@ -70,6 +129,8 @@ hc_inds = top.select("name hc")
 pos = t.xyz[0]
 pos_c3 =  np.array(pos[c3_inds],dtype=np.float32)
 pos_hc =  np.array(pos[hc_inds],dtype=np.float32)
+posinfo = {'c3': pos_c3, 'hc': pos_hc}
+
 box = t.unitcell_lengths[0]
 Lx = box[0]
 Ly = box[1]
@@ -83,40 +144,16 @@ Nx = int(Lx/1.0) + 1
 Ny = int(Ly/1.0) + 1
 Nz = int(Lz/1.0) + 1
 
+Nx = Ny = Nz = 4
 Cells = np.array([Cell([i,j,k], [dl,dl,dl], [Nx,Ny,Nz], box, z0=zl, pbc='xy') for k in range(Nz) for j in range(Ny) for i in range(Nx)])
-#for i,c in enumerate(Cells):
-#    print(i, c)
-#    print('volume:', c.volume)
-#    print('index:', c.index)
-#    print('pos:', c.pos)
-#    print('neighbor index3d:', c.neighbor_index3d)
-#    print('neighbor index:', c.neighbor_index)
+system = System(dl, Nx, Ny, Nz, box, 0.0, 0.0, zl, 'xy')
+system.make_intlist(posinfo)
+#print(system.intlist_dict['c3'])
+system.load_intlist()
+system.calc_pores()
+for i,pi in enumerate(system.occupied_indexes):
+    print(i, len(pi))
+for i,ss in enumerate(system.subposes):
+    print(ss[system.occupied_indexes[i]])
 
-def make_intlist(pos_, dl, nx, ny, nz, origin):
-    b = np.trunc((pos_-origin)/dl)
-    intlist = np.array([[[np.where((b[:,0] == i) & (b[:,1] == j) & (b[:,2] == k))[0] for k in range(nz)] for j in range(ny)] for i in range(nx)])
-    return intlist
-
-print('make_intlist:')
-orig = np.array([0.0, 0.0, zl])
-intlist = make_intlist(pos_c3, dl, Nx, Ny, Nz, orig)
-#for i,c in enumerate(Cells):
-#    if i == 0:
-#        print(c.id, c.index)
-#        print(intlist[c.ix, c.iy, c.iz])
- 
-
-# load intlist to each cell class
-[c.load_intlist(intlist) for c in Cells]
-#print(Cells[0].pos, Cells[0].intlist)
-#print(pos_c3[Cells[0].intlist])
-
-[c.gen_subcell() for c in Cells]
-
-pores = [c.calc_pore(pos_c3, vdw_table['c3']) for c in Cells]
-npore = 0
-for i,c in enumerate(Cells):
-    print(i, c.poreindex, len(c.poreindex))
-    npore += len(c.poreindex)
-print(npore)
 sys.exit()
