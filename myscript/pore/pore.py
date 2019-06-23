@@ -45,12 +45,6 @@ class Cell:
             #print([i for i in ilist[n[0], n[1], n[2]]])
             self.intlist += [i for i in ilist[n[0], n[1], n[2]]]
 
-    def gen_subcell(self, ncell=10):
-        self.poreindex = []
-        self.ds = float(self.size[0]) / ncell
-        x0, y0, z0 = self.pos[0], self.pos[1], self.pos[2]
-        self.subpos = np.array([[[[x0+ix*ds, y0+iy*ds, z0+iz*ds] for iz in range(ncell)] for iy in range(ncell)] for ix in range(ncell)], dtype=np.float32)
-
     def calc_pore(self, pos, vdwradii):
         print(self.id)
         atm_pos = pos[self.intlist]
