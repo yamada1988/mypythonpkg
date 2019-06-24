@@ -7,7 +7,6 @@ import time
 
 # unit:nm
 vdw_table = {'c3': 0.170, 'hc':0.120, 'oh':0.152}
-vdw_test = 0.050
 
 class System:
     def __init__(self, dl, Nx, Ny, Nz, box, xl, yl, zl, pbc):
@@ -40,27 +39,23 @@ class System:
     def calc_occupieds(self):
         [c.gen_subcells(self.atm_info, self.box) for c in self.cells]
         [c.calc_occupieds(posinfo) for c in self.cells]
-        print(self.cells[0].subcells_info)
+        #print(self.cells[0].subcells_info)
         self.occupuncies = [c.occupuncy for c in self.cells]
         self.occupuncy = sum(self.occupuncies)/self.numcell
 
 
-    def calc_pores(self):
-        [c.calc_pore() for c in self.cells]
- 
-
     def plot_3d(self, mode='pore', color='b'):
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d', aspect='equal')
-        for c_ in self.cells:
-            if mode == 'pore':
-                inds = c_.pore_index
-            elif mode == 'occupied':
-                inds = c_.occupied_index
-            X = c_.subpos[inds][:,0]
-            Y = c_.subpos[inds][:,1]
-            Z = c_.subpos[inds][:,2]
-            sc = ax.scatter(X, Y, Z, c=color, alpha=0.3)
+        for c in self.cells:
+            poses = np.array([sb.pos for sb in c.subcells if sb.status == mode])
+            try:
+                X = poses[:,0]
+                Y = poses[:,1]
+                Z = poses[:,2]
+                sc = ax.scatter(X, Y, Z, c=color, alpha=0.3)
+            except:
+                continue
         plt.show()
 
 
@@ -75,7 +70,6 @@ class System:
 
 
 class Cell:
-    vdw_table = {'c3': 0.170, 'hc':0.120, 'oh':0.152}
     def __init__(self, index, size, nlims, Lbox, x0=0.0, y0=0.0, z0=0.0, pbc='xyz'):
         self.id = index[2] * nlims[1]*nlims[0] + index[1]*nlims[0] + index[0] 
         self.ix, self.iy, self.iz = index[0], index[1], index[2]
@@ -101,7 +95,8 @@ class Cell:
         self.box = Lbox
         self.occupuncy = 0.0
 
-    def gen_subcells(self, atminfo, box, ncell=10):
+
+    def gen_subcells(self, atminfo, box, ncell=5):
         self.ncell = ncell**3
         self.pore_num = self.ncell
         self.occupied_num_dict = {}
@@ -126,22 +121,12 @@ class Cell:
     def calc_occupieds(self, posinfo):
         print(self.id)
         [sb.calc_occupied(posinfo, self.intlist_dict) for sb in self.subcells]
-        self.subcells_info = [{'index':sb.index, 'pos':sb.pos, 'occupied_flag':sb.occupuncy_dict, 'pore_index':sb.pore_index, 'global_index':sb.global_index} for sb in self.subcells]
+        self.subcells_info = [{'index':sb.index, 'pos':sb.pos,
+                               'status':sb.status, 'global_index':sb.global_index} for sb in self.subcells]
         #print(self.subcells_info)
-        self.occupuncy_dict = {}
-        for pname in posinfo.keys():
-            self.occupied_num_dict[pname] = 0
-            self.occupuncy_dict[pname] = 0.0
-            for ss in self.subcells:
-                for k,v in ss.occupuncy_dict.items():
-                    if k == pname:
-                        self.occupied_num_dict[pname] += v
-            self.occupuncy_dict[pname] = float(self.occupied_num_dict[pname])/self.ncell
-            self.occupuncy += self.occupuncy_dict[pname]
-
-
-    def calc_pore(self):
-        self.pores = [sb.pore_index for sb in self.subcells] 
+        tmp = [sb.status for sb in self.subcells]
+        self.pore_num = tmp.count('pore')
+        self.occupuncy = float(self.ncell - self.pore_num )/ self.ncell
 
 
 class Subcell:
@@ -185,8 +170,8 @@ class Subcell:
         #print(self.intlist_dict)
         self.occupied_index_dict = {}
         self.occupied_globalindex_dict = {}
-        self.pore_index = ()
         self.pore_globalindex = ()
+        self.status = ''
         for pname, pos in posinfo.items():
             atm_pos = pos[intlist_dict[pname]]
             d_pos = self.pos - atm_pos
@@ -200,7 +185,9 @@ class Subcell:
                 self.occupuncy = 1 
                 self.occupied_index_dict[pname] = [self.ix, self.iy, self.iz]
                 self.occupied_globalindex_dict[pname] = self.global_index
+                self.status += pname + ' '
         if self.occupuncy == 0:
+            self.status = 'pore'
             self.pore_index = [self.ix, self.iy, self.iz]
             self.pore_globalindex = self.global_index
 
@@ -225,18 +212,17 @@ zl = np.min(pos[:,2])
 Lz = zh-zl
 dl = 1.0 #nm
 boxh = 0.50*box
-Nx = int(Lx/1.0) + 1
-Ny = int(Ly/1.0) + 1
-Nz = int(Lz/1.0) + 1
+Nx = int(Lx/dl) + 1
+Ny = int(Ly/dl) + 1
+Nz = int(Lz/dl) + 1
 
-Nx = 4
-Ny = 4 
-Nz = 4
+zk = 40.0
+Nz = 13
 system = System(dl, Nx, Ny, Nz, box, 0.0, 0.0, zl, 'xy')
 system.make_intlist(posinfo)
 system.load_intlist()
 system.calc_occupieds()
 print(system.occupuncy)
-system.calc_pores()
-
+system.plot_3d()
 sys.exit()
+
