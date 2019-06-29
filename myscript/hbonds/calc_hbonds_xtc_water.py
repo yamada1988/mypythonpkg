@@ -315,7 +315,7 @@ for t in md.iterload(xtcname,top=sysname):
             tintertime = dat.now()
             tdelta = tintertime - tstarttime
             per = float(it)/Nframes
-            remper = (1.0 - doneper)
+            remper = (1.0 - per)
             if remper <= 0.0:
                 tstr = dat.now().strftime('%Y-%m-%d-%H:%M:%S')
             else:
