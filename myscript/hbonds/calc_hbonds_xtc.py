@@ -45,7 +45,7 @@ def calc_hbond(i, a_pos, d_pos):
                     r_jhjo = pjo - d_pos[(j-1)*Nmon+jpa] 
                     theta = angle_between(r_jhio, r_jhjo) * 180.0/np.pi
                     #print((i-1)*Nmon+ipa, (j-1)*Nmon+jpa, d, theta)
-                    if theta <= theta0 :
+                    if theta <= theta0 or 180.0-theta0 <= theta:
                         #s[(i-1)*Nmon+ipa,(j-1)*Nmon+jpa] = 1
                         ls.append([(i-1)*Nmon+ipa, (j-1)*Nmon+jpa])
         t1 = time.time()
