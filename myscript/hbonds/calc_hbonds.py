@@ -8,7 +8,6 @@ import pickle
 from joblib import Parallel, delayed
 import time
 
-
 def unit_vector(vector):
     """ Returns the unit vector of the vector.  """
     return vector / np.linalg.norm(vector)
@@ -45,31 +44,44 @@ def calc_hbond(i, a1, a2, d_pos0, d0, int_list, box):
     latm = []
     lij = []
     a1 = np.array([a1])
+    int_list = np.array(int_list)
     dist_pos = a1 - a2
     dist_pos -= box * np.trunc(dist_pos/(box/2.0))
     d = np.sqrt(np.sum(dist_pos**2, axis=1))
-    for jd,d_ in enumerate(d):
-        #print(jd,d_)
-        if  0.001e0 < d_ <= d0:
-            ja = int_list[jd]
-            r_jhio = a1 - d_pos0[2*ja]
-            r_jhio -= box * np.trunc(r_jhio/(box/2.0))
-            r_jhjo = a2[jd] - d_pos0[2*ja]
-            r_jhjo -= box * np.trunc(r_jhjo/(box/2.0))
-            theta1 = angle_between(r_jhio, r_jhjo) * 180.0/np.pi
-            if theta1 <= theta0 or 180.0-theta0 <= theta1:
-                latm.append(2*ja)
-                lij.append(ja)
-
-            r_jhio = a1 - d_pos0[2*ja+1]
-            r_jhio -= box * np.trunc(r_jhio/(box/2.0))
-            r_jhjo = a2[jd] - d_pos0[2*ja+1]
-            r_jhjo -= box * np.trunc(r_jhjo/(box/2.0))
-            theta2 = angle_between(r_jhio, r_jhjo) * 180.0/np.pi
-            if theta2 <= theta0 or 180.0-theta0 <= theta2:
-                latm.append(2*ja+1)
-                if ja not in lij:
-                    lij.append(ja)
+    d_index = (0.001e0 < d ) & (d < d0)
+    #print(d_index)
+    #print(int_list)
+    #print(int_list[d_index])
+    ids = [id0 for id0,d0 in enumerate(d_index) if d0 == True]
+    #print(ids)
+    for ip in range(2):
+        did = 2*int_list[d_index] + ip
+        #print(did)
+        #print(a1, d_pos0[did])
+        r_jhio = a1 - d_pos0[did]
+        r_jhio -= box * np.trunc(r_jhio/(box/2.0))
+        r_jhjo = a2[ids] - d_pos0[did]
+        r_jhjo -= box * np.trunc(r_jhjo/(box/2.0))
+        #print(r_jhio, r_jhjo)
+        r_jhio = np.array([unit_vector(r) for r in r_jhio])
+        r_jhjo = np.array([unit_vector(r) for r in r_jhjo])
+        #if it == 16:
+        #    print(i, d, d_index, r_jhio, r_jhjo)
+        try:
+            thetas = np.sum(r_jhio*r_jhjo, axis=1)
+        except ValueError:
+            break 
+        #print(thetas)
+        theta1s = np.arccos(np.clip(thetas,-1.0,1.0)) * 180.0/np.pi
+        #print(theta1s)
+        t_index = (theta1s <= theta0 ) | (180.0-theta0 <= theta1s)
+        #print(t_index)
+        dtid = int_list[d_index][t_index]
+        #print(dtid)
+        for id_ in dtid:
+            latm.append(2*id_+ip)
+            if id_ not in lij:
+                lij.append(id_)
 
     #print('calc hbonds:', time.time()-t0)
     return latm, lij
@@ -82,16 +94,16 @@ def flatten(nested_list):
 recdt = 0.10e0 # ps
 tint = 1
 dt = recdt * tint #ps
-Nchain = 5000
-d_hbond = 0.320 # nm
+Nchain = 1000
+d_hbond = 0.340 # nm
 theta0 = 30 # degree
 import math
 rad0 = theta0/180.0*math.pi # rad
-d_nlist = 1.20 # nm
-dt_nlist = 10 # 5.0ps
-dt_rec = 50
+d_nlist = 0.80 # nm
+dt_nlist = 10 # 0.5ps
+dt_rec = 10
 sysname = '../SYS/solution.gro'
-xtcname = '../MD/md.xtc'
+xtcname = '../Production/md.xtc'
 outdir = 'sij_'+xtcname.split('/')[-1].split('.')[0]
 logfile = outdir + '/sij.log'
 try:
@@ -108,7 +120,7 @@ with open(logfile, 'wt') as f:
     f.write('# prog%\ttime(ps\ttotbond\tend time\n')
 #k = md.load(xtcname, top=sysname)
 #Nframes = k.n_frames
-Nframes = 50000
+Nframes = 10000
 acname = 'OW1'
 dnname1 = 'H2'
 dnname2 = 'HW3'
@@ -193,11 +205,12 @@ for t in md.iterload(xtcname,top=sysname):
             nlist = make_nlist(a_pos, box, d_nlist)
 
         t0 = time.time()
-        results = [calc_hbond(i, a_pos[i], a_pos[il], d_pos, d_hbond, il, box) for i,il in enumerate(nlist)]
+        results = Parallel(n_jobs=1, backend='threading')([delayed(calc_hbond)(i, a_pos[i], a_pos[il], d_pos, d_hbond, il, box) for i,il in enumerate(nlist)])
         results = list(zip(*results))
         results_atm = results[0]
         results_ij = results[1]
         print(time.time()-t0)
+        #sys.exit()
         #for ir,r in enumerate(results):
         #    print(ir,r)
       
