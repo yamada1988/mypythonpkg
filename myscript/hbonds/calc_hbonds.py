@@ -2,7 +2,7 @@ import mdtraj as md
 import numpy as np
 import sys
 import os
-from scipy.sparse import csr_matrix
+from scipy.sparse import csc_matrix, csr_matrix
 from numba import jit
 import pickle
 from joblib import Parallel, delayed
@@ -80,8 +80,7 @@ def calc_hbond(i, a1, a2, d_pos0, d0, int_list, box):
         #print(dtid)
         for id_ in dtid:
             latm.append(2*id_+ip)
-            if id_ not in lij:
-                lij.append(id_)
+            lij.append(id_)
 
     #print('calc hbonds:', time.time()-t0)
     return latm, lij
@@ -95,13 +94,12 @@ recdt = 0.10e0 # ps
 tint = 1
 dt = recdt * tint #ps
 Nchain = 1000
-d_hbond = 0.340 # nm
+d_hbond = 0.350 # nm
 theta0 = 30 # degree
 import math
 rad0 = theta0/180.0*math.pi # rad
-d_nlist = 0.80 # nm
-dt_nlist = 10 # 0.5ps
-dt_rec = 10
+d_nlist = 2.0*d_hbond*np.sin(109.50/2.0*math.pi/180.0)  # nm
+dt_rec = 100
 sysname = '../SYS/solution.gro'
 xtcname = '../Production/md.xtc'
 outdir = 'sij_'+xtcname.split('/')[-1].split('.')[0]
@@ -120,7 +118,7 @@ with open(logfile, 'wt') as f:
     f.write('# prog%\ttime(ps\ttotbond\tend time\n')
 #k = md.load(xtcname, top=sysname)
 #Nframes = k.n_frames
-Nframes = 10000
+Nframes = 200000
 acname = 'OW1'
 dnname1 = 'H2'
 dnname2 = 'HW3'
@@ -150,10 +148,14 @@ try:
     os.remove(outdir+'/satm.pickle')
 except:
     pass
+try:
+    os.remove(outdir+'/list_ij.pickle')
+except:
+    pass
 
 with open(outdir+'/sij.pickle', 'wb') as f:
     line = '''
-This picklefile contains time series of hydrogen-bond informations for each sites, sij, as csr_matrix.
+This picklefile contains time series of hydrogen-bonding informations for each sites, sij, as csc_matrix.
 Import scipy.sparse module if you want to read.
 Example for load sij.pickle:
 ====================
@@ -176,6 +178,8 @@ if __name__ == '__main__':
 with open(outdir+'/satm.pickle', 'wb') as f:
     pickle.dump(line, f)
 
+with open(outdir+'/list_ij.pickle', 'wb') as f:
+    pickle.dump(line, f)
 
 
 
@@ -201,8 +205,16 @@ for t in md.iterload(xtcname,top=sysname):
         a_pos = p[a_indexes]
         d_pos = p[d_indexes]
 
-        if it % dt_nlist == 0:
-            nlist = make_nlist(a_pos, box, d_nlist)
+        nlist = make_nlist(a_pos, box, d_nlist)
+        r0 = np.array(nlist)
+        row = np.array([[ir]*len(r) for ir,r in enumerate(r0)])
+        row = flatten(row)
+        col = flatten(nlist)
+        datas = np.ones(len(col))
+        l_ij = csc_matrix((datas, (row, col)), shape=(N_acc, N_acc), dtype=np.int32)
+        with open(outdir+'/list_ij.pickle', 'ab') as f:
+            pickle.dump([t_[ip], l_ij], f, protocol=2)
+
 
         t0 = time.time()
         results = Parallel(n_jobs=1, backend='threading')([delayed(calc_hbond)(i, a_pos[i], a_pos[il], d_pos, d_hbond, il, box) for i,il in enumerate(nlist)])
@@ -228,15 +240,23 @@ for t in md.iterload(xtcname,top=sysname):
         #    for r in rs:
         #        if r >=0:
         #            s[ir, r] = 1.0e0
-        s_atm = csr_matrix((datas, (row, col)), shape=(N_acc, N_dno), dtype=np.int32)
+        s_atm = csc_matrix((datas, (row, col)), shape=(N_acc, N_dno), dtype=np.int32)
         with open(outdir+'/satm.pickle', 'ab') as f:
             pickle.dump([t_[ip], s_atm], f, protocol=2)
 
         row = np.array([[ir]*len(r) for ir,r in enumerate(results_ij)])
         row = flatten(row)
         col = flatten(results_ij)
-        datas = np.ones(len(col))
-        s_ij = csr_matrix((datas, (row, col)), shape=(Nchain, Nchain), dtype=np.int32)
+        r = np.append(row, col)
+        c = np.append(col, row)
+        rc1 = [r,c]
+        rc2 = list(zip(*rc1))
+        rc3 = list(set(rc2))
+        rc4 = list(zip(*rc3))
+        r = rc4[0]
+        c = rc4[1]
+        datas = np.ones(len(c))
+        s_ij = csr_matrix((datas, (r, c)), shape=(Nchain, Nchain), dtype=np.int32)
         with open(outdir+'/sij.pickle', 'ab') as f:
             pickle.dump([t_[ip], s_ij], f, protocol=2)
 
