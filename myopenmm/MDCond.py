@@ -360,6 +360,8 @@ class MDConductor:
             slt_param = [[] for i in range(total_particles)]
             for index in range(total_particles):
                 slt_param[index] = nonbonded_force.getParticleParameters(index)
+
+            for index in range(total_particles):
                 if index in ghost_particles:
                     nonbonded_force.setParticleParameters(index, charge=0.0e0, sigma=slt_param[index][1], epsilon=0.0e0)
 
@@ -379,6 +381,7 @@ class MDConductor:
                 if index in solute_particles:
                     nbforce_02.setParticleParameters(index, charge=slt_param[index][0], sigma=slt_param[index][1], epsilon=slt_param[index][2])
                 else:
+                    print('delete index: {0:7d} nonbonded parameter.'.format(index))
                     nbforce_02.setParticleParameters(index, charge=0.0e0, sigma=slt_param[index][1], epsilon=0.0e0)
 
 
@@ -386,8 +389,8 @@ class MDConductor:
             for index in range(nonbonded_force.getNumExceptions()):
                 exception_info = nonbonded_force.getExceptionParameters(index)
                 #print(exception_info)
-                index_v = nbforce_02.addException(exception_info[0], exception_info[1], exception_info[2], exception_info[3], exception_info[4])
-                nbforce_02.setExceptionParameters(index, exception_info[0], exception_info[1], exception_info[2], exception_info[3], exception_info[4])
+                index_v = nbforce_02.addException(exception_info[0], exception_info[1], 0.0e0, exception_info[3], 0.0e0)
+                nbforce_02.setExceptionParameters(index, exception_info[0], exception_info[1], 0.0e0, exception_info[3], 0.0e0)
                 #print(index_v, exception_info)
  
   
