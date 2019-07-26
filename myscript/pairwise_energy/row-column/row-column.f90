@@ -1,6 +1,6 @@
 subroutine calc(imol, iatm, k, A)
   implicit none
-  integer(4), intent(in) :: iatm, imol, k
+  integer(4), intent(in) :: imol, iatm, k
   real(8),    intent(in) :: A(k, iatm, imol)
   integer(4) :: iimol, iiatm, jjmol, jjatm, ik
  
