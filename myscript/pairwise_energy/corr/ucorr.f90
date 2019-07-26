@@ -1,6 +1,6 @@
-subroutine ucorr(k, iatm, imol, box, rcut, kappa, charge, A, e_corr)
+ subroutine ucorr(imol, iatm, k, box, rcut, kappa, charge, A, e_corr)
   implicit none
-  integer(4), intent(in) :: iatm, imol, k
+  integer(4), intent(in) :: imol, iatm, k
   real(8),    intent(in) :: A(k, iatm, imol)
   real(8),    intent(in) :: box, rcut
   real(8),    intent(in) :: kappa
