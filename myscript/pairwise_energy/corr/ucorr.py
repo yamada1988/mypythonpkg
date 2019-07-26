@@ -23,7 +23,7 @@ def corr_fortran(i, j, k, box, rcut, kappa, charge, A, e_corr):
     rcut = ctypes.byref(ctypes.c_double(rcut))
     kappa = ctypes.byref(ctypes.c_double(kappa))
 
-    f.ucorr_(fk, fj, fi, box, rcut, kappa, charge, A, e_corr)
+    f.ucorr_(fi, fj, fk, box, rcut, kappa, charge, A, e_corr)
 
 i =  5
 a =  4
