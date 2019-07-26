@@ -1,13 +1,13 @@
 FC = gfortran
 
-TARGET = librealfort.so
+TARGET = liburealfort.so
 SRC = real.f90
 
-all:librealfort.so
+all:liburealfort.so
 
 
 #object
-librealfort.so:real.f90
-	$(FC) -fPIC -shared $< -lm -o $@ -O3
+liburealfort.so:real.f90
+	$(FC) -fPIC -fopenmp -shared $< -lm -o $@ -O3
 clean:
-	rm -f librealfort.so
+	rm -f liburealfort.so
