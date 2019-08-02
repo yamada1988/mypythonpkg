@@ -356,65 +356,22 @@ class MDConductor:
             nonbonded_force = forces['NonbondedForce']
 
             solute_particles = list(core_particles) + list(ghost_particles)
-            total_particles = nonbonded_force.getNumParticles()
-            slt_param = [[] for i in range(total_particles)]
-            for index in range(total_particles):
+            slt_param = [[]]*len(solute_particles) 
+            for index in solute_particles:
                 slt_param[index] = nonbonded_force.getParticleParameters(index)
-
-            for index in range(total_particles):
                 if index in ghost_particles:
                     nonbonded_force.setParticleParameters(index, charge=0.0e0, sigma=slt_param[index][1], epsilon=0.0e0)
 
-            # create new nonbonded_force (only for solute-solute interaction!)
-            nbforce_02 = NonbondedForce()
-
-            cf = nonbonded_force.getCutoffDistance()
-            me = nonbonded_force.getNonbondedMethod()
-            tl = nonbonded_force.getEwaldErrorTolerance()
-            sw = nonbonded_force.getSwitchingDistance()
-            nbforce_02.setCutoffDistance(cf)
-            nbforce_02.setNonbondedMethod(me)
-            nbforce_02.setPMEParameters(self.pme_alpha, self.pme_nx, self.pme_ny, self.pme_nz)
-            nbforce_02.setSwitchingDistance(sw)
-            for index in range(total_particles):
-                nbforce_02.addParticle(1.0, 1.0, 1.0)
-                if index in solute_particles:
-                    nbforce_02.setParticleParameters(index, charge=slt_param[index][0], sigma=slt_param[index][1], epsilon=slt_param[index][2])
-                else:
-                    print('delete index: {0:7d} nonbonded parameter.'.format(index))
-                    nbforce_02.setParticleParameters(index, charge=0.0e0, sigma=slt_param[index][1], epsilon=0.0e0)
-
-
-            # Set Exculusion Info for Modified LJ and Coulomb interactions from NonbondedForce
-            for index in range(nonbonded_force.getNumExceptions()):
-                exception_info = nonbonded_force.getExceptionParameters(index)
-                #print(exception_info)
-                index_v = nbforce_02.addException(exception_info[0], exception_info[1], 0.0e0, exception_info[3], 0.0e0)
-                nbforce_02.setExceptionParameters(index, exception_info[0], exception_info[1], 0.0e0, exception_info[3], 0.0e0)
-                #print(index_v, exception_info)
- 
-  
-            #fnum = system.getNumForces()
-            #for k in range(fnum):
-            #    print(system.getForce(k))
-            #print('new nbforce:')
-            system.addForce(nbforce_02)
-            #fnum = system.getNumForces()
-            #for k in range(fnum):
-            #    print(system.getForce(k))
- 
-
-
-           # for i in ghost_particles:
-           #     for j in solute_particles:
-           #         if i == j:
-           #             continue
-           #         try:
-           #             nonbonded_force.addException(i, j, chargeProd=slt_param[i][0]*slt_param[j][0], 
-           #                                                sigma=0.50*(slt_param[i][1]+slt_param[j][1]),
-           #                                                epsilon=sqrt(slt_param[i][2]*slt_param[j][2]))
-           #         except:
-           #             pass
+            for i in ghost_particles:
+                for j in solute_particles:
+                    if i == j:
+                        continue
+                    try:
+                        nonbonded_force.addException(i, j, chargeProd=slt_param[i][0]*slt_param[j][0], 
+                                                           sigma=0.50*(slt_param[i][1]+slt_param[j][1]),
+                                                           epsilon=sqrt(slt_param[i][2]*slt_param[j][2]))
+                    except:
+                        pass
 #                        print('{0:d}-{1:d} pair already prepared.'.format(i, j))
 #            for index in range(nonbonded_force.getNumExceptions()):
 #                print(nonbonded_force.getExceptionParameters(index))
@@ -441,7 +398,7 @@ class MDConductor:
             flat_bottom_force.addBond(
             atom_index_i, atom_index_j, [r0, k, d])
 
-            system.addForce(flat_bottom_force)
+        system.addForce(flat_bottom_force)
 
 
         return system
@@ -590,7 +547,6 @@ class MDConductor:
         #print('Conducting...')
         simulation.step(self.steps)
         #print('Done!\n')
-        #print(simulation.context.getState(getForces).getForces)
 
         # output grofile
         if niter == niter_tot:
