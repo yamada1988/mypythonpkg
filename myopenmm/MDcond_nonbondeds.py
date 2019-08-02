@@ -107,6 +107,7 @@ class MDConductor:
 
         self.InpDict.update(InpDict)
         InpDict = self.InpDict 
+	
 
         self.integrator = InpDict['integrator']
         self.temperature = float(InpDict['temperature'])
