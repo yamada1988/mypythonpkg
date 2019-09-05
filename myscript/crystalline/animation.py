@@ -89,7 +89,7 @@ def flatten(nested_list):
 
 # Parameters
 recdt = 0.10e0 # ps
-tint = 10
+tint = 100
 dt = recdt * tint #ps
 Nchain = 1000
 d_hbond = 0.350 # nm
@@ -211,7 +211,7 @@ for num_index in range(1, 1+1):
     ax.set_ylim(ymin-0.10, ymax+0.10)
     ax.set_zlim(zmin-0.10, zmax+0.10)
 
-tb = 1000
+tb = 25
 
 N = len(x)
 print(N)
@@ -224,7 +224,7 @@ def animate(i):
     cm_ = cm.hsv(n)
     ax.scatter(x_, y_, z_,s=40,alpha=0.8, marker="o",c=cm_)
     if i%tb == 0:
-        ax.set_title("time:{0:6.2f} (ps)".format(i*0.10), 
+        ax.set_title("time:{0:6.2f} (ps)".format(i*dt), 
              loc="left",
              fontdict={"fontsize":   18,
                        "fontweight": "bold"})
