@@ -92,7 +92,7 @@ class MDConductor:
         try:
             f = open(file, 'rt')
         except IOError:
-            sys.exit('Input file {0} not founded.'.format(file))
+            sys.exit('Input file {0} not found.'.format(file))
 
         with open(file, 'rt') as f:
             InpDict = {line.split('=')[0].strip() : line.split('=')[1].strip() \
