@@ -17,7 +17,6 @@ import subprocess
 import shutil
 import datetime
 
-
 #  Requirement:
 #  python 2.7, openmm, mdtraj, parmed
 #
@@ -29,7 +28,7 @@ def get_gpu_info():
    print('GPU IDs:', lines)
    return lines
 
-class MDConductor:
+class MDRUN:
     def __init__(self):
         self.InpDict = {'integrator': 'Langevin', 
                         'temperature': 300.0e0, 
@@ -315,7 +314,7 @@ class MDConductor:
             print('set PME parameters...')
             forces = {system.getForce(index).__class__.__name__: system.getForce(index) for index in range(system.getNumForces())}
             forces['NonbondedForce'].setPMEParameters(self.pme_alpha, self.pme_nx, self.pme_ny, self.pme_nz)
-            print('after:')
+            #print('after:')
             alpha, nx, ny, nz = forces['NonbondedForce'].getPMEParameters()
             print(alpha)
             print('nx={0:d}, ny={1:d}, nz={2:d}'.format(nx, ny, nz))
@@ -353,38 +352,77 @@ class MDConductor:
             ghost_particles = range(int(ghost_start)-1, int(ghost_end))
             solvent_particles = range(int(solvent_start)-1, int(solvent_end))
 
+            solute_particles = list(core_particles) + list(ghost_particles)
             forces = {system.getForce(index).__class__.__name__: system.getForce(index) for index in range(system.getNumForces())}
+            for k, v in forces.items():
+                print(k,v)
             nonbonded_force = forces['NonbondedForce']
 
-            solute_particles = list(core_particles) + list(ghost_particles)
-            slt_param = [[]]*len(solute_particles) 
-            for index in solute_particles:
+
+            total_particles = system.getNumParticles()
+            slt_param = [[]]*total_particles
+            for index in range(total_particles):
                 slt_param[index] = nonbonded_force.getParticleParameters(index)
                 if index in ghost_particles:
                     nonbonded_force.setParticleParameters(index, charge=0.0e0, sigma=slt_param[index][1], epsilon=0.0e0)
-
-            for i in ghost_particles:
-                for j in solute_particles:
+            
+            for i in core_particles:
+                for j in core_particles:
                     if i == j:
                         continue
                     try:
-                        nonbonded_force.addException(i, j, chargeProd=slt_param[i][0]*slt_param[j][0], 
-                                                           sigma=0.50*(slt_param[i][1]+slt_param[j][1]),
-                                                           epsilon=sqrt(slt_param[i][2]*slt_param[j][2]))
+                        nonbonded_force.addException(i, j,
+                                                chargeProd = slt_param[i][0]*slt_param[j][0],
+                                                sigma = (slt_param[i][1]+slt_param[j][1])/2.0E0,
+                                                epsilon = np.sqrt(slt_param[i][2]*slt_param[j][2]))
+                        #print(i, j)
                     except:
+                        #print(i,j)
                         pass
-#                        print('{0:d}-{1:d} pair already prepared.'.format(i, j))
-#            for index in range(nonbonded_force.getNumExceptions()):
-#                print(nonbonded_force.getExceptionParameters(index))
- 
+            
+            # NonbondedForce 2: Core-Ghost interactionm
+            nonbonded_force_02 = NonbondedForce()
+            
+            cf = nonbonded_force.getCutoffDistance()
+            me = nonbonded_force.getNonbondedMethod()
+            tl = nonbonded_force.getEwaldErrorTolerance()
+            sw = nonbonded_force.getSwitchingDistance()
+            nonbonded_force_02.setCutoffDistance(cf)
+            nonbonded_force_02.setNonbondedMethod(me)
+            nonbonded_force_02.setPMEParameters(alpha, nx, ny, nz)
+            nonbonded_force_02.setSwitchingDistance(sw)
+            
+            for index in range(total_particles):
+                nonbonded_force_02.addParticle(1.0, 1.0, 1.0)
+                if index in solute_particles:
+                    nonbonded_force_02.setParticleParameters(index, charge=slt_param[index][0], sigma=slt_param[index][1], epsilon=slt_param[index][2])
+                else:
+                    nonbonded_force_02.setParticleParameters(index, charge=0.0e0, sigma=slt_param[index][1], epsilon=0.0e0)
+            
+            
+            # Set Exculusion Info
+            for index in range(nonbonded_force.getNumExceptions()):
+                exception_info = nonbonded_force.getExceptionParameters(index)
+                nonbonded_force_02.addException(exception_info[0], exception_info[1], 0.0e0, exception_info[3], 0.0e0)
+                nonbonded_force_02.setExceptionParameters(index, exception_info[0], exception_info[1], 0.0e0, exception_info[3], 0.0e0)
+            
+            
+           #system.addForce(nonbonded_force_02)
+
+
+
+            forces = {system.getForce(index).__class__.__name__: system.getForce(index) for index in range(system.getNumForces())}
+            #for k, v in forces.items():
+            #     print(k, v)
+
+
         # Set Restraint
         # Refs: http://www.maccallumlab.org/news/2015/1/23/testing
         if self.flatbottom == True:   
             flat_bottom_force = CustomBondForce(
-	    'step(abs(r-r0)-d) * (k/2) * (r-r0)^2')
+	    'step(r-r0) * (k/2) * (r-r0)^2')
             flat_bottom_force.addPerBondParameter('r0')
             flat_bottom_force.addPerBondParameter('k')
-            flat_bottom_force.addPerBondParameter('d')
 
             with open(self.restraint_file) as input_file:
     	        for line in input_file:
@@ -393,13 +431,12 @@ class MDConductor:
                     atom_index_j = int(columns[1]) - 1
                     k = float(columns[2])
                     r0 = float(columns[3])
-                    d = float(columns[4])
             print('flat-bottom restraint added particle-{0:d} and particle-{1:d}.'.format(atom_index_i, atom_index_j))
-            print('k:{0:8.5f}\tr0:{1:5.3f}\t{2:5.3f}'.format(k, r0, d))
+            print('k:{0:8.5f}\tr0:{1:5.3f}'.format(k, r0))
             flat_bottom_force.addBond(
-            atom_index_i, atom_index_j, [r0, k, d])
+            atom_index_i, atom_index_j, [r0, k])
 
-        system.addForce(flat_bottom_force)
+            system.addForce(flat_bottom_force)
 
 
         return system
@@ -549,6 +586,7 @@ class MDConductor:
         simulation.step(self.steps)
         #print('Done!\n')
 
+
         # output grofile
         if niter == niter_tot:
             #print('Saving...')
@@ -572,7 +610,7 @@ class MDConductor:
                 if os.path.exists(mdgro):
                     shutil.copyfile(mdgro, mdgro.split('.')[0] + date_ + '.gro')
                 with open(mdgro, 'wt') as f:
-                    f.write('Generated by OpenMM: Date = {0:%Y-%m-%d %H:%M:%S}\n'.format(dt_now))
+                    f.write('OpenMM: Date = {0:%Y-%m-%d %H:%M:%S}\n'.format(dt_now))
                     f.write(' '+self.anum+'\n')
                     for i,line in enumerate(self.lines[:-1]):
                         l = line[:20] + '{0:8.4f}{1:8.4f}{2:8.4f}\n'.format(pos[i][0], pos[i][1], pos[i][2])
@@ -582,7 +620,7 @@ class MDConductor:
                 if os.path.exists(mdpdb):
                     shutil.copyfile(mdpdb, mdpdb.split('.')[0] + date_ + '.pdb')
                 with open(mdpdb, 'wt') as f:
-                    f.write('Generated by OpenMM: Date = {0:%Y-%m-%d %H:%M:%S}\n'.format(dt_now))
+                    f.write('OpenMM: Date = {0:%Y-%m-%d %H:%M:%S}\n'.format(dt_now))
                     f.write(' '+self.anum[0]+'\n')
                     f.write('CRYST1  {0:7.3f}  {0:7.3f}  {0:7.3f}  90.00  90.00  90.00 P 1           1\n'.format(10.0e0*pbcbox[0]))
                     f.write(self.anum[1]+'\n')
@@ -625,303 +663,3 @@ class MDConductor:
             temperature = integrator.getTemperature()
 
             return dt, fric_const, temperature
-
-
-class REMDConductor(MDConductor, object):
-    def __init__(self, T_list, mode=None):
-        super(REMDConductor, self).__init__()
-        if mode == 'REMD':
-            self.Ts = list(map(float, T_list))
-        elif mode == 'REST':
-            self.Ts = T_list
-        self.n_replica = len(self.Ts)
-        self.mode = mode
-        # Statistics
-        reps = range(self.n_replica)
-        self.attempts = [0 for i in reps]
-        self.successes = [0 for i in reps]
-        self.probability = [0.0 for i in reps]
-        self.existindex = [0 for i in reps]
-        self.history = ['{0:02d}'.format(i+1) for i in reps]
-
-    def make_arglist(self, simulations, ensname, index, mddir='MD/', sysdir='SYS/'): 
-        arglist = [ []*5 for line in range(self.n_replica)]
-        for i, T_ in enumerate(self.Ts):
-            j = '{0:02d}'.format(i+1)
-            indexj = index + '_' + j
-            arglist[i] = [simulations[i], ensname, indexj, mddir, sysdir]
-
-        return arglist
-
-
-    def initialize_replicas(self, simulations):
-        for i, sim in enumerate(simulations):
-            setattr(sim.context, 'sysid', '{0:02d}'.format(i+1))
-        return simulations
-
-
-    def remdrun(self, simulations, ensname, index, mddir='MD', sysdir='SYS/', parallel=False, niter=1, niter_tot=1):
-        arglist = self.make_arglist(simulations, ensname, index, mddir, sysdir)
-
-        enes = [0.0 for i in range(self.n_replica)]
-        if parallel == False:
-            for i, args in enumerate(arglist):
-                j = '{0:02d}'.format(i+1)
-                k = '{0:04d}'.format(niter) 
-                sim, energy = self.mdrun(args[0], args[1], index, args[3], args[4], 
-                                         assert_system=False, check_eneflag=True, nrep=j, 
-                                         remdflag= True, niter=niter, niter_tot=niter_tot)
-                simulations[i] = sim
-                enes[i] = energy
-        elif parallel == True:
-            Threads = ['' for i in range(self.n_replica)]
-            for i,args in enumerate(arglist):
-                j = '{0:02d}'.format(i+1)
-                k = '{0:04d}'.format(niter)
-                thread = mymm.MyThread(target=self.mdrun, args=(args[0], args[1], index, args[3], args[4]),
-                                                                kwargs={'remdflag':True, 'niter':niter, 'niter_tot':niter_tot,
-                                                                        'nrep':j, 'assert_system':False, 'check_eneflag':True})
-                Threads[i]=thread
-
-            for i,thread in enumerate(Threads):
-                thread.start()
-
-            for i,thread in enumerate(Threads):
-                sim, energy = thread.join()
-                simulations[i] = sim
-                enes[i] = energy
- 
-            for thread in Threads:
-                thread.stop()   
-#        print('\nCheck results...')
-#        for i,sim in enumerate(simulations):        
-#            print('ID:', sim.context.sysid)
-#            print('enes:', enes[i])
-        return simulations, enes
-
-    def calc_prob(self, simulations, E_list, niter):
-        k = AVOGADRO_CONSTANT_NA * BOLTZMANN_CONSTANT_kB
-        b_list = [0 for i in range(self.n_replica)]
-        p_list = [1 for i in range(self.n_replica)]
-       
-        if niter % 2 == 1:
-            eo = 'odd'
-        else:
-            eo = 'even'
-
-        if eo == 'even':
-            elist = E_list[0::2]
-        elif eo == 'odd':
-            elist = E_list[1::2]
-            elist = elist[:-1]
-
-        if self.mode == 'REST':
-            sims_copy = simulations
-
-        for i,e in enumerate(E_list[:-1]):
-            if eo == 'even' and i % 2 == 1:
-                continue
-            elif eo == 'odd' and i % 2 == 0:
-                continue
-            print('index:', i)
-            if self.mode == 'REMD':
-                tn = self.Ts[i+1]*kelvin
-                tm = self.Ts[i]*kelvin 
-                Dbeta = (1/(k*tm) - 1/(k*tn))
-                DE_mn = E_list[i+1] - E_list[i]
-            elif self.mode == 'REST':
-                Dbeta = 1/(k*self.temperature*kelvin)
-                E_nn = E_list[i+1]
-                E_mm = E_list[i]
-                X_m = sims_copy[i].context.getState(getPositions=True).getPositions()
-                X_n = sims_copy[i+1].context.getState(getPositions=True).getPositions() 
-                pbcbox_n = sims_copy[i+1].context.getState().getPeriodicBoxVectors()
-                pbcbox_m = sims_copy[i].context.getState().getPeriodicBoxVectors()
-                #print('pbcboxs:', pbcbox_n, pbcbox_m)
-                sims_copy[i+1].context.setPositions(X_m)
-                sims_copy[i].context.setPositions(X_n)
-                sims_copy[i+1].context.setPeriodicBoxVectors(pbcbox_m[0], pbcbox_m[1], pbcbox_m[2])
-                sims_copy[i].context.setPeriodicBoxVectors(pbcbox_n[0], pbcbox_n[1], pbcbox_n[2])
-                E_nm = sims_copy[i+1].context.getState(getEnergy=True).getPotentialEnergy()
-                E_mn = sims_copy[i].context.getState(getEnergy=True).getPotentialEnergy()
-                         
-                #print('E_mm', E_mm)
-                #print('E_nn', E_nn)
-                #print('E_nm:', E_nm)
-                #print('E_mn:', E_mn)
-                D_mn = E_mm - E_mn
-                D_nm = E_nn - E_nm
-                #print('D_mn:', D_mn)
-                #print('D_nm:', D_nm)
-                DE_mn = D_mn + D_nm
-                #print('DE_mn', DE_mn)
-                sims_copy[i+1].context.setPeriodicBoxVectors(pbcbox_n[0], pbcbox_n[1], pbcbox_n[2])
-                sims_copy[i].context.setPeriodicBoxVectors(pbcbox_m[0], pbcbox_m[1], pbcbox_m[2])
-                sims_copy[i+1].context.setPositions(X_n)
-                sims_copy[i].context.setPositions(X_m)
-            DE = -1.0e0*Dbeta * DE_mn
-            print('DE', DE)
-            if DE < 0:
-                DE = 0
-            expbD = math.exp(-1.0e0*DE)
-            b_list[i] = expbD
-            p = rand()
-            p_list[i] = p
-            
-        print('blist:', b_list)
-        print('plist:', p_list)
-        return b_list, p_list
-
-    def exchange(self, simulations, b_list, p_list, niter, index):
-        if niter % 2 == 1:
-            for i in range(1, self.n_replica, 2):
-                self.attempts[i] += 1
-        else:
-            for i in range(0, self.n_replica, 2):
-                self.attempts[i] += 1
-
-        for i,sim in enumerate(simulations):
-           if sim.context.sysid == '01':
-               self.existindex[i] += 1 
-
-        sysids = [sim.context.sysid for sim in simulations]
-
-        exchange_flags = ['' for i in range(self.n_replica)]
-        for i, b in enumerate(b_list):
-            if b >= 1 or b >= p_list[i]:
-                exchange_flags[i] = True
-                self.successes[i] += 1
-            else:
-                exchange_flags[i] = False
-        print('accepts :', self.successes)
-        print('attempts:', self.attempts)
-        print('history :', self.existindex)
-        print('exchange_flags:', exchange_flags)
-
-        # exchange context i-j position index
-        if self.mode == 'REMD':
-            contexts = [ sim.context for sim in simulations]
-            for i, flag in enumerate(exchange_flags):
-                if flag == True:
-                    dummy_p = contexts[i]
-                    contexts[i] = contexts[i+1]
-                    contexts[i+1] = dummy_p
-
-            for i,sim in enumerate(simulations):
-                sim.context = contexts[i] 
-
-        if self.mode == 'REST':
-            positions = [sim.context.getState(getPositions=True).getPositions() for sim in simulations]
-            pbcboxs = [sim.context.getState().getPeriodicBoxVectors() for sim in simulations ]
-            for i, flag in enumerate(exchange_flags):
-                if flag == True:
-                    dummy_p = positions[i]
-                    dummy_b = pbcboxs[i]
-                    dummy_s = sysids[i]
-                    positions[i] = positions[i+1]
-                    pbcboxs[i] = pbcboxs[i+1]
-                    sysids[i] = sysids[i+1]
-                    positions[i+1] = dummy_p
-                    pbcboxs[i+1] = dummy_b
-                    sysids[i+1] = dummy_s
-            for i, sim in enumerate(simulations):
-                sim.context.setPositions(positions[i])
-                sim.context.setPeriodicBoxVectors(pbcboxs[i][0], pbcboxs[i][1], pbcboxs[i][2])
-                sim.context.sysid = sysids[i]
-
-        self.history.append(sysids)
-
-
-        # write exchange information
-        states0 = '# st1\t\t' + '\t\t'.join(['st{0:d}'.format(i+1) for i in range(1, self.n_replica)]) 
-        states = ['' for i in range(2*self.n_replica)]
-        for j,i in enumerate([str(i+1) for i in range(self.n_replica)]):
-            k = j + 1
-            states[2*k-2] = i
-            if j == self.n_replica + 1:
-                break
-            if exchange_flags[j]:
-                states[2*k-1] = 'x'
-
-            elif exchange_flags[j] == False and j < self.n_replica - 1:
-                states[2*k-1] = ' '
-
-        states = '\t'.join(states) + '\n'
-        exchange_fname = 'MD/exchange_'+index+'.log'
-        if niter == 1:
-            with open(exchange_fname, 'wt') as f:
-                f.write(states0 + '\n')
-        with open(exchange_fname, 'a+') as f:
-            f.write(states)
- 
-        return simulations       
-
-    def statistics(self, index):
-        for i,s in enumerate(self.successes):
-            self.probability[i] = '{0:4.3f}'.format(float(s)/float(self.attempts[i]))
-        p = self.probability
-        print('''                  
-##############################
-       REMD  Statistics 
-##############################
-''')
-        str_ = 'states:\t' + '\t'.join(['{0:02d}-{1:02d}'.format(i+1, i+2) for i in range(self.n_replica-1)])
-        print(str_)
-        str_p = 'prob:\t' + '\t'.join(self.probability[:-1])
-        print(str_p)
-        str_s = 'accept:\t' + '\t'.join(['{0:5d}'.format(s) for s in self.successes[:-1]])
-        print(str_s)
-        str_a = 'attmps:\t' + '\t'.join(['{0:5d}'.format(s) for s in  self.attempts[:-1]])
-        print(str_a)
-        print('History:')
-        str_ =  '\t'.join(['state{0:02d}'.format(i) for i in range(1, self.n_replica+1)])
-        print(str_)
-        str_i = '\t'.join(['{0:5d}'.format(s) for s in self.existindex])
-        print(str_i)
-        with open('history'+index+'.dat', 'wt') as f:
-            for hist in self.history:
-                str_ = '\t'.join([ '{0:02d}'.format(int(h)) for h in hist])
-                f.write(str_+'\n')
-
-    def conduct(self, inpf, index, niter=1, equilibriation=True, parallel=False, gpuid='0'):
-        gpuids = get_gpu_info()[1:]*self.n_replica
-
-        if equilibriation == True:
-            print('start equilibriation procedure...')
-        simulations = []
-        self.loadFile(inpf)
-        g = self.sysfile
-        tp = self.forcefield
-        if equilibriation == True:
-            niter = 1
-
-        for i, T_ in enumerate(self.Ts):
-            if equilibriation == False:
-                self.sysfile = g.split('.')[0] + '_{0:02d}'.format(i+1) + '.gro'
-            if self.mode == 'REMD':
-                self.temperature = T_
-                self.forcefield = self.forcefield
-            elif self.mode == 'REST':
-                self.temperature = self.temperature
-                self.forcefield = T_
-
-            nvtgro, systop = self.preparation(sysdir='SYS/', mddir='MD/')
-            if parallel == False:
-                simulation = self.setup(nvtgro, systop, gpuid)
-            elif parallel == True:
-                simulation = self.setup(nvtgro, systop, gpuids[i])
-
-            simulations.append(simulation)
-        simulations = self.initialize_replicas(simulations)
-
-        for iter_ in range(1, niter+1):
-            print('===================')
-            print('iter:', iter_)
-            energys = []
-            simulations, energys = self.remdrun(simulations, 'npt', index, mddir='MD/', sysdir='SYS/', parallel=parallel, niter=iter_, niter_tot=niter)
-            b_list, p_list = self.calc_prob(simulations, energys, iter_)
-            if equilibriation == False:
-                simulations = self.exchange(simulations, b_list, p_list, iter_, index)
-        # Check Statistics
-        if equilibriation == False:
-            self.statistics(index)
