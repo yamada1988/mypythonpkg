@@ -41,7 +41,7 @@ class MDConductor:
                         'dt': 0.0020, 
                         'mdensemble' : 'npt',
                         'setPME' : False,
-                        'pme-alpha' : 0.026, 
+                        'pme-alpha' : 2.6, 
                         'pme-nx' : 64,
                         'pme-ny' : 64,
                         'pme-nz' : 64,
@@ -317,10 +317,11 @@ class MDConductor:
         if self.setPME:
             print('set PME parameters...')
             forces = {system.getForce(index).__class__.__name__: system.getForce(index) for index in range(system.getNumForces())}
-            forces['NonbondedForce'].setPMEParameters(self.pme_alpha, self.pme_nx, self.pme_ny, self.pme_nz)
+            #forces['NonbondedForce'].setPMEParameters(0.0, self.pme_nx, self.pme_ny, self.pme_nz)
+            forces['NonbondedForce'].setEwaldErrorTolerance(self.pme_ftol)
             print('after:')
             alpha, nx, ny, nz = forces['NonbondedForce'].getPMEParameters()
-            print(alpha)
+            #print(alpha)
             print('nx={0:d}, ny={1:d}, nz={2:d}'.format(nx, ny, nz))
 
         if self.switchflag:
@@ -409,7 +410,8 @@ class MDConductor:
             sw = nonbonded_force.getSwitchingDistance()
             nbforce_02.setCutoffDistance(cf)
             nbforce_02.setNonbondedMethod(me)
-            nbforce_02.setPMEParameters(self.pme_alpha, self.pme_nx, self.pme_ny, self.pme_nz)
+            #nbforce_02.setPMEParameters(0.0, self.pme_nx, self.pme_ny, self.pme_nz)
+            nbforce_02.setEwaldErrorTolerance(self.pme_ftol)
             nbforce_02.setSwitchingDistance(sw)
             nbforce_02.setUseDispersionCorrection(False)
             for index in range(total_particles):
@@ -750,6 +752,9 @@ class MDConductor:
             hdf5_reporter.close() 
         # initialize simulaition.reportes
         simulation.reporters = []
+
+        alphas = self.forces['NonbondedForce'].getPMEParametersInContext(simulation.context)
+        print(alphas)
 
         return simulation, energy
 
