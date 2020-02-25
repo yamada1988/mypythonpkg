@@ -16,7 +16,7 @@ gpuindex = args[3]
 
 nframe = 5000
 niter  = 10
-recstep = 100
+recstep = 20
 totaltime = nframe * niter * recstep
 
 md_nvt = MDConductor(index)
