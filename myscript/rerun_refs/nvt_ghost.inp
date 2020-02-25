@@ -13,11 +13,11 @@ fileformat = GRO
 
 # Equilibriation Process     
 nvtflag     = True   
-nvtstep     =    1000
+nvtstep     =     200
 
 # Record Input
 nvtrecflag  = True   
-nvteqrecstep=     100
+nvteqrecstep=      20
 logflag     = False
 verbose     = True 
 forcerecflag= False
