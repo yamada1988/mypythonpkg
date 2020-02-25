@@ -12,8 +12,8 @@ forcefield = topol_slt.top
 fileformat = GRO
 
 # Equilibriation Process     
-nptflag     = True   
-nptstep     =    1000
+nvtflag     = True   
+nvtstep     =    1000
 
 # Record Input
 nvtrecflag  = True   
