@@ -14,9 +14,9 @@ index = args[2]
 gpuindex = args[3]
 numiter = args[4]
 
-nframe =  500
-niter  =  20
-recstep = 10
+nframe =  200
+niter  =   10
+recstep =  10
 totaltime = nframe * niter * recstep
 
 md_nvt = MDConductor(index)
@@ -57,18 +57,6 @@ simulation_refs = Simulation(topology, simsys, integrator, md_nvt.pltform, md_nv
 context = simulation_refs.context
 context.setPositions(positions)
 context.setVelocitiesToTemperature(md_nvt.temperature)
-
-# Constraints
-#force = openmm.CustomExternalForce("k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
-#force.addGlobalParameter("k", 10**10*kilocalories_per_mole/angstroms**2)
-#force.addPerParticleParameter("x0")
-#force.addPerParticleParameter("y0")
-#force.addPerParticleParameter("z0")
-#for i, atom_crd in enumerate(positions):
-#    if i not in md_nvt.ghost_particls:
-#        print(i, atom_crd.value_in_unit(nanometers))
-#        force.addParticle(i, atom_crd.value_in_unit(nanometers))
-#simsys.addForce(force)
 
 # XTC
 mdxtc = 'MD/refs' + index + '_' + numiter + '.xtc'
