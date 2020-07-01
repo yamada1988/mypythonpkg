@@ -28,16 +28,13 @@ print(rc_odd[0,:3])
 vc_odd_0 = np.diff(rc_odd, axis=1)
 # recalculate the ordered vector to consider periodic bounrady condition
 vc_odd = vc_odd_0 - L * np.round(vc_odd_0/L)
-#print(vc_odd[0,0])
 
 natm_odd = len(rc_odd[0])
 # reshape rc_odd array to calculate distance matrix (dim=2, rc_odd_re(X,Y))
 rc_odd_re = rc_odd.reshape(Nchain*natm_odd,3)
 # distance matrix for k-l pair, k = ik chain at jk monomer, l = il chain at jl monomer
-drs_0 = distance_matrix(rc_odd_re, rc_odd_re)
-print(drs_0.shape)
-#print(drs_0[0])
-#print(drs_0[1])
+drs_0 = np.sqrt(np.sum(((rc_odd_re[:,np.newaxis] - rc_odd_re[np.newaxis]) - L * np.round((rc_odd_re[:,np.newaxis] - rc_odd_re[np.newaxis])/L) )**2, axis=2))
+
 # drs[ik,jk,il,jl] = distance between ik chain at jk monomer and il chain at jl monomer
 drs = drs_0.reshape(Nchain,natm_odd,Nchain,natm_odd)
 print(drs[0,0,0])
