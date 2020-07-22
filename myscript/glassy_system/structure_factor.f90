@@ -70,7 +70,6 @@ program example
         end do
         !$omp end do
         !$omp end parallel
-        call xtc % read 
         write (*,*) it
     end do
 
