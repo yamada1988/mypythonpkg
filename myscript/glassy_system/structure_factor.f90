@@ -41,14 +41,15 @@ program example
     rho = npos / (box_dim**3.0E0)
     allocate(r(nhist))
     r = [((i - 0.50E0) * dr, i = 1, nhist)]  !set r-scales as the middle points
-    
+    call xtc % close
 
+ 
+       
 
+    call xtc % init("../../../MD/md_long/short.xtc")
     do it=0,Ntmax
-        if ( mod(it, dt) /= 0 ) then
-            call xtc % read
-            continue
-        end if
+        call xtc % read
+        if ( mod(it, dt) /= 0 ) cycle
         pos = xtc % pos(:, 1:xtc % NATOMS:4)  !get the position of OW (every 3rd atom)
 
         !$omp parallel private(xr, diff, sinkr)
