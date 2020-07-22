@@ -10,16 +10,16 @@ program example
     type(xtcfile) :: xtc
     real(kind=8), parameter :: pi = 3.141592653589793238462643383
     real(kind=8), parameter :: sgm = 0.60 !nm
-    real(kind=8), parameter :: dk = 1.0, dr = 0.00020, k0 = 0.000010
+    real(kind=8), parameter :: dk = 0.50, dr = 0.00020, k0 = 0.000010
     real(kind=8), allocatable :: pos(:,:), S(:), S0(:), r(:), sinqr(:)
     real(kind=8) :: box_dim, xr(3), k, sinkr, diff, r_max, rho, r_
-    integer, parameter :: Nk = 20
+    integer, parameter :: Nk = 400
     integer :: i, j, it, nt, ik, nhist
     character(50) :: fname, dummy
     integer :: npos
-    integer, parameter :: Ntmax = 10, dt = 1
+    integer, parameter :: Ntmax = 10000, dt = 100
 
-    call xtc % init("../../../MD/md/short.xtc")
+    call xtc % init("../../../MD/md_long/short.xtc")
     npos = xtc % NATOMS / 4  !number of water molecules (NATOMS is obtained after calling init)
     allocate(pos(3, npos))
     call xtc % read
@@ -44,7 +44,11 @@ program example
     
 
 
-    do it=0,Ntmax,dt
+    do it=0,Ntmax
+        if ( mod(it, dt) /= 0 ) then
+            call xtc % read
+            continue
+        end if
         pos = xtc % pos(:, 1:xtc % NATOMS:4)  !get the position of OW (every 3rd atom)
 
         !$omp parallel private(xr, diff, sinkr)
@@ -58,8 +62,6 @@ program example
               diff = sqrt(sum(xr**2.0))
               if ( diff <= r_max ) then
                 sinkr = sin(k*diff)/(k*diff)
-                !r_ = (ceiling(diff / dr) - 0.50E0) * dr
-                !sinkr = sin(k*r_)/(k*r_)
                 S(ik) = S(ik) + 2.0E0 * sinkr/npos
               end if
             end do
@@ -68,6 +70,7 @@ program example
         !$omp end do
         !$omp end parallel
         call xtc % read 
+        write (*,*) it
     end do
 
     ! 5. Close the file
