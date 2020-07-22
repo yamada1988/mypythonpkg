@@ -20,7 +20,7 @@ program example
     integer, parameter :: Ntmax = 10000, dt = 100
 
     call xtc % init("../../../MD/md_long/short.xtc")
-    npos = xtc % NATOMS / 4  !number of water molecules (NATOMS is obtained after calling init)
+    npos = xtc % NATOMS !number of water molecules (NATOMS is obtained after calling init)
     allocate(pos(3, npos))
     call xtc % read
 
@@ -50,7 +50,7 @@ program example
     do it=0,Ntmax
         call xtc % read
         if ( mod(it, dt) /= 0 ) cycle
-        pos = xtc % pos(:, 1:xtc % NATOMS:4)  !get the position of OW (every 3rd atom)
+        pos = xtc % pos(:, :)  
 
         !$omp parallel private(xr, diff, sinkr)
         !$omp do 
