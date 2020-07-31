@@ -14,7 +14,7 @@ program example
     integer :: i, j, it, jt, nt
     character(50) :: fname, dummy
     integer :: npos
-    integer, parameter :: Ntmax = 44000, dt = 10, dtau = 20000
+    integer, parameter :: Ntmax = 100000, dt = 10, dtau = taunum
 
     call xtc % init("../../../MD/md_long/short.xtc")
     npos = xtc % NATOMS   !number of water molecules (NATOMS is obtained after calling init)
@@ -37,6 +37,7 @@ program example
     end do
     call xtc % close
 
+     write(*,*) "drs calculation..."
     !$omp parallel private(xr, dxr, it, jt, diff)
     !$omp do 
     do i = 1, npos
@@ -55,18 +56,20 @@ program example
     !$omp end do
     !$omp end parallel
        
-     do it = 1, int(Ntmax/dt)-int(dtau/dt)
-       write(fname, "('../../../DAT/drs/tau=20000/dr'i5.5'.dat')") int(it*dt)
+     !do it = 1, int(Ntmax/dt)-int(dtau/dt)
+     do it = 1+int(dtau/dt), int(Ntmax/dt)
+       write(fname, "('../../../DAT/drs/tau='i5.5'/dr'i5.5'.dat')") int(dtau), int(it*dt)
        open (17,file=fname)
        if ( mod(it, 10) == 0) then
          write(*,*) int(it*dt)
        end if
-       write(17, '(A, 2X, f7.5)') , '#', box_dim
+       write(17, '(A, 2X, f8.5)') , '#', box_dim
        do i = 1, npos
-         write (17, '(f8.5,2X,f8.5,2X,f8.5,2X,f7.5)') pos(1, i, it), pos(2, i, it), pos(3, i, it), diff(i, it)
+         write (17, '(f8.5,2X,f8.5,2X,f8.5,2X,f7.5)') pos(1, i, it), pos(2, i, it), pos(3, i, it), diff(i, it-(int(dtau/dt)))
        end do
      end do
     close(17)
    
 
 end program example
+
