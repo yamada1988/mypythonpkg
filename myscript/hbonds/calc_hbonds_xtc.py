@@ -61,8 +61,11 @@ def calc_hbond(i, a1, a2, d_pos0, d0, int_list, box):
         #print(a1, d_pos0[did])
         r_ojoi = a2[ids] - a1
         r_ojoi -= box * np.trunc(r_ojoi/(box/2.0))
+        #r_oihj = d_pos0[did] - a2[ids]
+        #r_oihj -= box * np.trunc(r_oihj/(box/2.0))
         r_hioi = d_pos0[did] - a2[ids]
         r_hioi -= box * np.trunc(r_hioi/(box/2.0))
+        # r_hjoj = a1 - d_pos0[did]
         #print(r_jhio, r_jhjo)
         r_ojoi = np.array([unit_vector(r) for r in r_hjoi])
         r_hioi = np.array([unit_vector(r) for r in r_hioi])
