@@ -1,3 +1,4 @@
+# Compute (U(t)-W(t)) described in Yamada(blend.pdf, Appendix C(scheme 2) )
 from myopenmm import *
 import mdtraj as md
 from simtk.openmm.app import *
