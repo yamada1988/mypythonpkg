@@ -47,4 +47,4 @@ for i in range(len(traj)):
     energyval /= kilojoules/mole
     print(i, energyval)
     with open(ofname, 'a+') as f:
-        f.write('{0:04d}\t{1:10.3f}\n'.format(i, energyval))
+        f.write('{0:04d}\t{1:10.3f}\n'.format(i, energyval))  
