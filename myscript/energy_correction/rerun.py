@@ -15,7 +15,7 @@ index = args[2]
 
 
 md_npt = MDConductor(index)
-inpf = '../inpdir/' + stage + '/water.inp'
+inpf = '../inpdir/' + stage + '/npt.inp'
 
 # Production Run
 md_npt.loadFile(inpf)
@@ -24,10 +24,8 @@ simulation_npt = md_npt.setup(sysgro, systop)
 context = simulation_npt.context
 
 
-ofname = 'energy' + index + '_openmm_trr.dat'
-#fname = 'MD/md' + index + '.xtc' 
-fname = 'MD/mdtrr' + index + '.trr'
-#fname = 'MD/copies' +index + '.trr'
+ofname = 'energy' + index + '_openmm.dat'
+fname = 'MD/energy' + index + '.trr'
 
 with open(ofname, 'wt') as f:
     f.write('# step\tEnergy(kJ/mol)\n')
@@ -49,4 +47,4 @@ for i in range(len(traj)):
     energyval /= kilojoules/mole
     print(i, energyval)
     with open(ofname, 'a+') as f:
-        f.write('{0:04d}\t{1:10.3f}\n'.format(i, energyval)) 
+        f.write('{0:04d}\t{1:10.3f}\n'.format(i, energyval))
