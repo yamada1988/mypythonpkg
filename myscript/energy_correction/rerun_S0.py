@@ -23,9 +23,9 @@ simulation_npt = md_npt.setup(sysgro, systop)
 context = simulation_npt.context
 
 
-ofname = 'energy' + index + '_openmm_S0.dat'
+ofname = 'DAT/energy' + index + '_S0.dat'
+#fname = 'MD/energy' + index + '.xtc'
 fname = 'MD/energy' + index + '.trr'
-
 with open(ofname, 'wt') as f:
     f.write('# step\tEnergy(kJ/mol)\n')
 
@@ -44,7 +44,7 @@ for i in range(len(traj)):
     state = context.getState(getEnergy=True)
     energyval = state.getPotentialEnergy()
     energyval /= kilojoules/mole
-    print(i, energyval)
+    #print(i, energyval)
     with open(ofname, 'a+') as f:
-        f.write('{0:04d}\t{1:10.3f}\n'.format(i, energyval))    
+        f.write('{0:04d}\t{1:10.3f}\n'.format(i, energyval))  
 
