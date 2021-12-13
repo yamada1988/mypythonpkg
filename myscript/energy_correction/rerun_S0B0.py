@@ -23,17 +23,29 @@ simulation_npt = md_npt.setup(sysgro, systop)
 context = simulation_npt.context
 
 
-ofname = 'energy' + index + '_S0B0.dat'
-fname = 'MD/md' + index + '_01.xtc' 
+ofname = 'DAT/energy' + index + '_S0B0.dat'
+#fname = 'MD/energy' + index + '.xtc'
+fname = 'MD/energy' + index + '.trr'
 with open(ofname, 'wt') as f:
     f.write('# step\tEnergy(kJ/mol)\n')
 
+# load trajcetory
 traj = md.load(fname,top=sysgro)
+# read box informations
+ucell_vs = traj.unitcell_vectors
+
 for i in range(len(traj)):
+    # read and set positions
     context.setPositions(traj.openmm_positions(i))
+    # set periodicbixvectors
+    ucell_v = ucell_vs[i]
+
+    context.setPeriodicBoxVectors(ucell_v[0],ucell_v[1],ucell_v[2])
     state = context.getState(getEnergy=True)
     energyval = state.getPotentialEnergy()
     energyval /= kilojoules/mole
-    print(i, energyval)
+    #print(i, energyval)
     with open(ofname, 'a+') as f:
         f.write('{0:04d}\t{1:10.3f}\n'.format(i, energyval))    
+
+  
