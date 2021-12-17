@@ -12,3 +12,10 @@ compute W-U and exp(beta*(W-U))
 U = E_B0 + (E_S0 - E_S0B0):exact potential energy
 W:psuedo potential energy (npt_ghost)
 
+時間がかかるので実際は
+ghost -> openmmで計算しなければならないのでrerun_ghost.pyで計算,
+スクリプトはrerun_openmm_ghost.sh
+
+B0,S0,S0B0 -> gromacsのmdrun -rerunで計算,誤差は1kJ/mol以下であることをPVP-PVA mixture, phi = 0.166, PVP, i=40で確認済み
+スクリプトはrerun_gromacs_gpu.sh
+
