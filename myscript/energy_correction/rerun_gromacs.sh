@@ -1,13 +1,13 @@
 #!/bin/bash
-#PJM -N "rg16P40replicanum"
+#PJM -N "rgs16A034replicanum"
 #PJM -L "rscunit=ito-b"
 #PJM -L "rscgrp=hp-g-1-dbg"
 #PJM -L "vnode=1"
 #PJM -L "vnode-core=9"
 #PJM -L "elapse=00:60:00"
 #PJM -X
-#PJM -e "OUT/rerun_gromacs.e.replicanum"
-#PJM -o "OUT/rerun_gromacs.o.replicanum"
+#PJM -e "OUT/rerun_gromacs_slt.e.replicanum"
+#PJM -o "OUT/rerun_gromacs_slt.o.replicanum"
 
 #---- Program Execution --------#                          
 #module load cuda/8.0
@@ -16,7 +16,7 @@
 export OMP_NUM_THREADS=2
 
 i=replicanum
-m=4
+m=10
 n1=`expr $m \* $i - $m + 1`
 n2=`expr $n1 + $m - 1`
 
@@ -31,14 +31,14 @@ dir=gromacs/
 if [ $i == 1 ]; then
 
   mkdir $dir
-  for ind in "B0"
-  do
-    if [ ! -f $dir/$ind.tpr ] ; then
-      mpirun -np 1 gmx_mpi_d grompp -f ../../mdp/md.mdp -c SYS/system0001.gro -p SYS/topol_$ind.top -o $dir/$ind -maxwarn 1
-      rm -f *mdout*
-      rm -f $dir/\#*
-    fi
-  done
+  #for ind in "B0"
+  #do
+  #  if [ ! -f $dir/$ind.tpr ] ; then
+  #    mpirun -np 1 gmx_mpi_d grompp -f ../../mdp/md.mdp -c SYS/system0001.gro -p SYS/topol_$ind.top -o $dir/$ind -maxwarn 1
+  #    rm -f *mdout*
+  #    rm -f $dir/\#*
+  #  fi
+  #done
 
   for ind in "S0" "S0B0"
   do
@@ -90,24 +90,24 @@ rm -f $dir/\#*
   
   done
 
-  for ind in "B0" 
-  do
-    num=`printf %04d $n`
-    echo $n
-    mpirun -np 2 gmx_mpi mdrun -s $dir/$ind.tpr -rerun MD/npt$num.xtc -deffnm $dir/npt${num}_$ind 
-    rm mdout.mdp
-    rm $dir/npt${num}_$ind.trr
+  #for ind in "B0" 
+  #do
+  #  num=`printf %04d $n`
+  #  echo $n
+  #  mpirun -np 2 gmx_mpi mdrun -s $dir/$ind.tpr -rerun MD/npt$num.xtc -deffnm $dir/npt${num}_$ind 
+  #  rm mdout.mdp
+  #  rm $dir/npt${num}_$ind.trr
 
-    mpirun -np 1 gmx_mpi energy -f $dir/npt${num}_$ind.edr -o $dir/npt${num}_$ind.xvg << EOF
-10 0
-EOF
+  #  mpirun -np 1 gmx_mpi energy -f $dir/npt${num}_$ind.edr -o $dir/npt${num}_$ind.xvg << EOF
+#10 0
+#EOF
 
-rm -f $dir/\#*
+#rm -f $dir/\#*
 
-    sed -e '1,24d' $dir/npt${num}_$ind.xvg > $dir/npt${num}_$ind.dat
-    rm $dir/npt${num}_$ind.xvg
+    #sed -e '1,24d' $dir/npt${num}_$ind.xvg > $dir/npt${num}_$ind.dat
+    #rm $dir/npt${num}_$ind.xvg
 
-  done
+  #done
   
 
 
