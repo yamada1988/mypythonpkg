@@ -77,7 +77,7 @@ class MDConductor:
                         'nonbonded_cutoffflag' : True,
                         'nonbonded_cutoff' : 1.20e0, 
                         'heavyhydrogen' : False, 
-                        'removeCMMotion' : False, 
+                        'removeCMMotion' : True, 
                         'ghost_particle' : False,
                         'path_ndxfile' : None,
                         'platform' : 'CUDA', 
