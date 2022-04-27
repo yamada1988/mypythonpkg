@@ -1,4 +1,4 @@
-import myopenmm as mymm
+import incropenmm as incrmm
 import math
 import mdtraj as md
 from distutils.util import strtobool
@@ -443,7 +443,7 @@ class FEPConductor_ljcustom:
                 if k == 0:
                     print('\nSaving...')
                     mdxtc = mddir + mdname + '_{0:02d}'.format(k) + '_{0:03d}'.format(iteration) + '.xtc'
-                    xtc_reporter = mymm.XTCReporter(mdxtc, 50)
+                    xtc_reporter = incrmm.XTCReporter(mdxtc, 50)
                     simulation0.reporters.append(xtc_reporter)
 
                 # Run some dynamics

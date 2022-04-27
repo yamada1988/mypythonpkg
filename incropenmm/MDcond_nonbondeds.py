@@ -1,4 +1,4 @@
-import myopenmm as mymm
+import incropenmm as incrmm
 import mdtraj as md
 from distutils.util import strtobool
 from simtk.openmm.app import *
@@ -562,7 +562,7 @@ class MDConductor:
             xtc_flag = True
             #print('Save trajectory as xtcfile...')
             mdxtc = mddir + mdname + '.xtc'
-            xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
+            xtc_reporter = incrmm.XTCReporter(mdxtc, self.recstep)
             simulation.reporters.append(xtc_reporter)
         elif self.recflag and self.reporterformat == 'HDF5' and remdflag == False:
             hdf5_flag = True
@@ -576,7 +576,7 @@ class MDConductor:
             indexj = index + '_{0:04d}'.format(niter)
             mdname_new = ensname + indexj
             mdxtc = mddir + mdname_new + '.xtc'
-            xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
+            xtc_reporter = incrmm.XTCReporter(mdxtc, self.recstep)
             simulation.reporters.append(xtc_reporter)
 
         if assert_system == True:
@@ -722,7 +722,7 @@ class REMDConductor(MDConductor, object):
             for i,args in enumerate(arglist):
                 j = '{0:02d}'.format(i+1)
                 k = '{0:04d}'.format(niter)
-                thread = mymm.MyThread(target=self.mdrun, args=(args[0], args[1], index, args[3], args[4]),
+                thread = incrmm.MyThread(target=self.mdrun, args=(args[0], args[1], index, args[3], args[4]),
                                                                 kwargs={'remdflag':True, 'niter':niter, 'niter_tot':niter_tot,
                                                                         'nrep':j, 'assert_system':False, 'check_eneflag':True})
                 Threads[i]=thread

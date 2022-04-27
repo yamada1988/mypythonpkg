@@ -1,4 +1,4 @@
-from myopenmm import *
+from incropenmm import *
 import mdtraj as md
 from simtk.openmm.app import *
 from simtk.openmm import *
