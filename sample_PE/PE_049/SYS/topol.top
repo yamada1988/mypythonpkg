@@ -1,0 +1,25 @@
+;Topology data created by J-OCTA : Original udf/bdf data is  C:/cygwin/home/yamada/PVA/PVA100/PVA100/PVA100_in.udf
+
+[ defaults ]
+;nbfunc    comb-rule  gen-pairs  fudgeLJ    fudgeQQ    
+1          2          yes        0.5        0.833333333333 
+
+[ atomtypes ]
+;  atom type         mass            q particle_type    sigma[nm] epsion[kJ mol^-1] 
+          c3        12.01          0.0            A 0.339966950842    0.4578937 
+          h1        1.008          0.0            A 0.247135304412   0.06571235 
+          hc        1.008          0.0            A 0.264953278775   0.06571235 
+          ho        1.008          0.0            A          0.0          0.0 
+          oh         16.0          0.0            A 0.306647338784    0.8806292 
+
+#include "PE100.itp"
+
+
+[ system ]
+;Name        
+PVA100_in.udf 
+
+[ molecules ]
+      PE100 20
+
+

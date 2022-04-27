@@ -1,0 +1,15 @@
+#
+# POLYMER / POLYMER mixture
+#
+
+seed 12index2
+
+tolerance 2.0 
+filetype gmx
+output systemindex.gro
+
+structure PE100.gro
+ number 100
+  inside box 0. 0. 0. 760.0 760.0 760.0 
+end structure
+

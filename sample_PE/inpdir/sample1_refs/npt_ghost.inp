@@ -1,0 +1,50 @@
+# OpenMM Input Parameters
+integrator = Langevin
+dt         = 0.0010
+friction_const= 1.0e0
+mdensemble = npt
+temperature= 423.0e0 
+pressure   = 1.0e0 
+pbc         = True
+constraints = AllBonds
+sysfile    = system.gro
+forcefield = topol.top 
+fileformat = GRO
+
+# Equilibriation Process     
+nptflag     = True   
+nptstep     =  500000
+
+# Record Input
+nptrecflag  = True   
+npteqrecstep=      25
+verbose     = True 
+forcerecflag= False
+reporterformat= XTC
+
+# NonBonded Method
+nonbondedmethod = PME
+nonbobded_cutoffflag = True
+nonbonded_cutoff = 1.20e0
+nonbonded_switchflag = True
+nonbonded_switch = 1.00e0
+
+# PME Parameters
+setPME     = True
+pme-alpha  = 2.6 
+pme-nx     = 64
+pme-ny     = 64
+pme-nz     = 64
+pme-ftol   = 5.0e-5
+
+# Advanced Simulation   
+ghost_particle = True
+path_ndxfile = system.ndx
+remdflag    = False 
+annealingflag= False
+heavyhydrogen = False
+removeCMMotion = False 
+
+# Platform Input
+platform  = OpenCL
+precision = single
