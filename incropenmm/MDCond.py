@@ -528,7 +528,7 @@ class MDConductor:
 
         if self.integrator == 'Langevin':
             print('set Langevin Integrator...')
-            integrator = LangevinMiddleIntegrator(temperature, fric_const, dt)
+            integrator = LangevinIntegrator(temperature, fric_const, dt)
         elif self.integrator == 'Brownian':
             print('set Brownian Integrator...')
             integrator = BrownianIntegrator(temperature, fric_const, dt)
