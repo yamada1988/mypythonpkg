@@ -23,4 +23,8 @@ Polyethylene(PE)単成分系でincrOpenMM計算を行うインプットファイ
 	../inpdir/stage2/npt_ghost.inpをインプットとしてMD計算を行うスクリプト。
 	- min.sh  
 	../inpdir/stage0/min.inpをインプットとしてエネルギー最小化計算を行うスクリプト。
-	min.sh => mdrun_02.shの順でテストMD計算を行う。
+
+## 使い方
+
+PE_0XX/へ移動し、min.sh => mdrun_02.shの順でジョブスクリプトを投入する。
+
