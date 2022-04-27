@@ -350,15 +350,15 @@ class MDConductor:
             core_end = total_lines[core_index].split('-')[1]
             ghost_start = total_lines[ghost_index].split('-')[0]
             ghost_end = total_lines[ghost_index].split('-')[1]
-            solvent_start = total_lines[solvent_index].split('-')[0]
-            solvent_end = total_lines[solvent_index].split('-')[1]
+            #solvent_start = total_lines[solvent_index].split('-')[0]
+            #solvent_end = total_lines[solvent_index].split('-')[1]
  
             if int(core_start) == 0 and int(core_start) == int(core_end):
                 core_particles = range(0,0)
             else:
                 core_particles = range(int(core_start)-1, int(core_end))
             ghost_particles = range(int(ghost_start)-1, int(ghost_end))
-            solvent_particles = range(int(solvent_start)-1, int(solvent_end))
+            #solvent_particles = range(int(solvent_start)-1, int(solvent_end))
 
             forces = {system.getForce(index).__class__.__name__: system.getForce(index) for index in range(system.getNumForces())}
             nonbonded_force = forces['NonbondedForce']
