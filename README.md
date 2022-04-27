@@ -11,6 +11,9 @@ incropenmm/xtcreporter.py
 incropenmm/mdrun.py
 実際にmdrunを行うスクリプト。
 
+sample_PE
+Polyethylene(PE)単成分系でincrOpenMM計算を行うインプットファイル群が置かれている。
+
 使い方：
 
 incropenmm/ディレクトリをクローン
