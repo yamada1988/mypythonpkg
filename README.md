@@ -2,7 +2,7 @@
 python packages for HPC
 
 # Openmm
-myopenmm/MDCond.py
+incropenmm/MDCond.py
 .inpファイルを読み込んでmdrunを行うメソッドが書かれたスクリプト。
 
 incropenmm/xtcreporter.py
