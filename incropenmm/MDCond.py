@@ -344,7 +344,6 @@ class MDConductor:
                 try:
                     core_index = total_lines.index('[ Core ]') + 1
                     ghost_index = total_lines.index('[ Ghost ]') + 1
-                    solvent_index = total_lines.index('[ Solvent ]') + 1
                 except:
                     sys.exit('If ghost_particle flag is True, ghost_index file must be specified.\n')
             core_start = total_lines[core_index].split('-')[0]
