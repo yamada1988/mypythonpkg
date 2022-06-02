@@ -392,8 +392,10 @@ class MDConductor:
             for index in range(total_particles):
                 if index in ghost_particles:
                     nonbonded_force.setParticleParameters(index, charge=0.0e0, sigma=slt_param[index][1], epsilon=0.0e0)
-
-
+		
+	    # Set PBC to exception
+            nonbonded_force.setExceptionsUsePeriodicBoundaryConditions(periodic=True)
+            
             # Check exception information
             #for index in range(nonbonded_force.getNumExceptions()):
             #    exception_info = nonbonded_force.getExceptionParameters(index)
@@ -430,6 +432,9 @@ class MDConductor:
                 nbforce_02.setExceptionParameters(index, exception_info[0], exception_info[1], 0.0e0, exception_info[3], 0.0e0)
                 #print(index_v, exception_info)
  
+            print('Set PBC for Exception: nonbondedforce_02.')
+            nbforce_02.setExceptionsUsePeriodicBoundaryConditions(periodic=True)
+
             system.addForce(nbforce_02)
             #fnum = system.getNumForces()
             #for k in range(fnum):
