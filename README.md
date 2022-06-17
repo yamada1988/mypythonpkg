@@ -26,3 +26,6 @@ incropenmm/mdrun.pyが使用例スクリプト。
 
 # ermod_mod
 incrOpenMMでrefs系のermod計算を行うための修正ermodのプログラム置き場。
+
+# OpenMM wiki
+OpenMMおよびincrOpenMMのマニュアル。
