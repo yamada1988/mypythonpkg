@@ -1,7 +1,7 @@
 # mypythonpkg
 python packages for HPC
 
-# Openmm
+# incrOpenmm
 incropenmm/MDCond.py
 .inpファイルを読み込んでmdrunを行うメソッドが書かれたスクリプト。
 
