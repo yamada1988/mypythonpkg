@@ -23,3 +23,6 @@ PYTHONPATHにincropenmm/ディレクトリを追加
 .inpファイルを作成、各種パラメータ設定を行う
 
 incropenmm/mdrun.pyが使用例スクリプト。
+
+# ermod_mod
+incrOpenMMでrefs系のermod計算を行うための修正ermodのプログラム置き場。
