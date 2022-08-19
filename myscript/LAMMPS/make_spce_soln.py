@@ -77,8 +77,21 @@ with open(ofname, 'wt') as of:
     l = '{0:11.8f}\t{1:11.8f} zlo zhi\n'.format(zlo, zhi)
     of.write(l)
 
-#masses:water
+#masses:ethanol
+#1 12.010000
+#2 1.008000
+#3 16.000000
+#4 1.008000
+#5 1.008000
     of.write('\n Masses\n\n')
+    l1 = ' 1\t12.01000\n'
+    l2 = l1 + ' 2\t1.00800\n'
+    l3 = l2 + ' 3\t16.0000\n'
+    l4 = l3 + ' 4 1.008000\n'
+    l5 = l4 + ' 5 1.008000\n'
+    of.write(l5)
+
+#masses:water
     owindex = atomtype_slt + 1
     hwindex = owindex + 1
     owmass = 15.9994
@@ -88,27 +101,82 @@ with open(ofname, 'wt') as of:
     l = '{0:2d}\t{1:10.9f} # HW\n'.format(hwindex, hwmass)
     of.write(l)
 
-#pairtype:water
+#pairtype:ethanol
+#1      0.109400                3.399670
+#2      0.000000                0.000000
+#3      0.210400                3.066473
+#4      0.015700                2.471353
+#5      0.015700                2.649533      
     of.write('\n Pair Coeffs # lj/cut/coul/long/omp\n\n')
+    l1 = ' 1\t0.109400\t3.399670\n'
+    l2 = l1 + ' 2\t0.000000\t0.000000\n'
+    l3 = l2 + ' 3\t0.210400\t3.066473\n'
+    l4 = l3 + ' 4\t0.015700\t2.471353\n'
+    l5 = l4 + ' 5\t0.015700\t2.649533\n'
+    of.write(l5)
+
+#pairtype:water
     l = '\t{0:2d}\t0.155504063097514\t3.1655700000\t #OW,spce\n'.format(owindex)
     of.write(l)
     l = '\t{0:2d}\t0.000000000000000\t0.0000000000\t #HW,spce\n'.format(hwindex)
     of.write(l)
 
-#bondtype:water
-    oh1index = 1
-    oh2index = 2
+#bondtype:ethanol
+#1 303.100000 1.535000
+#2 314.100000 1.426000
+#3 337.300000 1.092000
+#4 335.900000 1.093000
+#5 369.600000 0.974000
     of.write('\n Bond Coeffs # spce\n\n')
+    l1 = ' 1\t303.100000\t1.535000\n'
+    l2 = l1 + ' 2\t314.100000\t1.426000\n'
+    l3 = l2 + ' 3\t337.300000\t1.092000\n'
+    l4 = l3 + ' 4\t335.900000\t1.093000\n'
+    l5 = l4 + ' 5\t369.600000\t0.974000\n'
+    of.write(l5)
+
+#bondtype:water
+    oh1index = bondtype_slt + 1
+    oh2index = oh1index + 1
     l = '\t{0:2d}\t0.0000000\t1.0000000000\t #OW,spce\n'.format(oh1index)
     of.write(l)
     l = '\t{0:2d}\t0.0000000\t1.0000000000\t #HW,spce\n'.format(oh2index)
     of.write(l)
 
-#angletype:water
-    hohindex = 1
+#angletype:ethanol
+#1 46.400000 110.050000
+#2 39.400000 108.350000
+#3 67.700000 109.430000
+#4 46.400000 110.070000
+#5 51.000000 109.880000
+#6 39.200000 109.550000
+#7 47.100000 108.160000
     of.write('\n Angle Coeffs # spce\n\n')
+    l1 = ' 1\t46.400000\t110.050000\n'
+    l2 = l1 + ' 2\t39.400000\t108.350000\n'
+    l3 = l2 + ' 3\t67.700000\t109.430000\n'
+    l4 = l3 + ' 4\t46.400000\t110.070000\n'
+    l5 = l4 + ' 5\t51.000000\t109.880000\n'
+    l6 = l5 + ' 6\t39.200000\t109.550000\n'
+    l7 = l6 + ' 7\t47.100000\t108.160000\n'
+    of.write(l7)
+
+#angletype:water
+    hohindex = angletype_slt + 1
     l = '\t{0:2d}\t0.0000000\t109.47000000\t #OW,spce\n'.format(hohindex)
     of.write(l)
+
+#dihedraltype:ethanol
+#1  0.155556 -0.466667 0.000000 0.622222 0.000000
+#2  0.250000 0.250000 0.000000 0.000000 0.000000
+#3  0.166667 -0.500000 0.000000 0.666667 0.000000
+#4  0.410000 -0.230000 0.000000 0.640000 0.000000
+    of.write('\n Dihedral Coeffs # solute\n\n')
+    l1 = ' 1\t0.155556\t-0.466667\t0.000000\t0.622222\t0.000000\n'
+    l2 = l1 + ' 2\t0.250000\t0.250000\t0.000000\t0.000000\t0.000000\n'
+    l3 = l2 + ' 3\t0.166667\t-0.500000\t0.000000\t0.666667\t0.000000\n'
+    l4 = l3 + ' 4\t0.410000\t-0.230000\t0.000000\t0.640000\t0.000000\n'
+    of.write(l4)
 
 #atoms:
     of.write('\n Atoms \n\n')
