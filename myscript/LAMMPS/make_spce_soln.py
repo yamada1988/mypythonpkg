@@ -5,6 +5,8 @@ import sys
 # make ethanol + water .data file for LAMMPS
 #
 
+atom_dic = {'C1':-0.0971, 'C2':0.13140,'O':-0.6028,'HC':0.04437, 'HT':0.01870, 'HO':0.39800,'HW':0.424, 'OW':-0.848}
+
 args = sys.argv
 enum = int(args[1])
 wnum = int(args[2])
@@ -63,13 +65,17 @@ with open(ofname, 'wt') as of:
     of.write(l)
 
 #box:
+    with open(mkboxname,'rt') as mkf:
+        lines = [line.split() for line in mkf]
+    boxline = lines[-1]
+
     of.write('\n')
     xlo = 0.00000
-    xhi = 96.00000
+    xhi = float(boxline[0])*10.0
     ylo = 0.00000
-    yhi = 96.0000
+    yhi = float(boxline[1])*10.0
     zlo = 0.0000
-    zhi = 96.0000
+    zhi = float(boxline[2])*10.0
     l = '{0:11.8f}\t{1:11.8f} xlo xhi\n'.format(xlo, xhi)
     of.write(l)
     l = '{0:11.8f}\t{1:11.8f} ylo yhi\n'.format(ylo, yhi)
@@ -181,28 +187,38 @@ with open(ofname, 'wt') as of:
 #atoms:
     of.write('\n Atoms \n\n')
     with open(mkboxname,'rt') as mkf:
-        lines = [line.split() for line in mkf]
+        lines = [line for line in mkf]
         atomlines = lines[2:-1]
         for al in atomlines:
             #print(al)
-            index = int(al[2])
-            try:
-                resnum = int(al[0].split('SOL')[0])
-            except:
-                resnum = int(al[0].split('MOL')[0])
-            if 'OW' in al[1]:
-                atomtype = owindex
-                charge = -0.848 #spce
-            elif 'HW' in al[1]:
-                atomtype = hwindex
-                charge = 0.424 #spce
+            molindex = int(al[0:5])
+            moltype = str(al[5:10])
+            atomtype = str(al[10:15].split()[0])
+            index = int(al[15:20])
+            #print(molindex, moltype, atomtype, index)
+            if atomtype == 'C1':
+                atomtype_lammps = 1
+            elif atomtype == 'C2':
+                atomtype_lammps = 1
+            elif atomtype == 'O':
+                 atomtype_lammps = 3
+            elif atomtype == 'HC':
+                 atomtype_lammps = 5
+            elif atomtype == 'HT':
+                 atomtype_lammps = 4
+            elif atomtype == 'HO':
+                 atomtype_lammps = 2
+            elif atomtype == 'OW':
+                 atomtype_lammps = 6
+            elif atomtype == 'HW':
+                 atomtype_lammps = 7
             else:
-                atomtype = 0
-                charge = 0.0
-            x = float(al[3])*10.0 #nm => A
-            y = float(al[4])*10.0 #nm => A
-            z = float(al[5])*10.0 #nm => A
-            l = '{0:4d}\t{1:4d}\t{2:2d}\t{3:5.4f}\t{4:8.5f}\t{5:8.5f}\t{6:8.5f}\n'.format(index,resnum,atomtype,charge,x,y,z)
+                atomtype_lammps = 0
+            charge = atom_dic[atomtype]
+            x = float(al[20:28])*10.0 #nm => A
+            y = float(al[28:36])*10.0 #nm => A
+            z = float(al[36:44])*10.0 #nm => A
+            l = '{0:4d}\t{1:4d}\t{2:2d}\t{3:5.4f}\t{4:8.5f}\t{5:8.5f}\t{6:8.5f}\n'.format(index,molindex,atomtype_lammps,charge,x,y,z)
             of.write(l)
 
 #Bonds:ethanol
