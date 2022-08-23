@@ -12,8 +12,8 @@ enum = int(args[1])
 wnum = int(args[2])
 mkboxname = args[3]
 
-atomnum_slt = 9
-skipnum = atomnum_slt * enum
+atomnum_slt = 9 * enum
+skipnum = atomnum_slt 
 bondnum_slt = 8 * enum
 anglenum_slt = 13 * enum
 dihedralnum_slt = 12 * enum
@@ -218,7 +218,7 @@ with open(ofname, 'wt') as of:
             x = float(al[20:28])*10.0 #nm => A
             y = float(al[28:36])*10.0 #nm => A
             z = float(al[36:44])*10.0 #nm => A
-            l = '{0:4d}\t{1:4d}\t{2:2d}\t{3:5.4f}\t{4:8.5f}\t{5:8.5f}\t{6:8.5f}\n'.format(index,molindex,atomtype_lammps,charge,x,y,z)
+            l = '{0:4d}\t{1:4d}\t{2:2d}\t{3:8.6f}\t{4:8.5f}\t{5:8.5f}\t{6:8.5f}\n'.format(index,molindex,atomtype_lammps,charge,x,y,z)
             of.write(l)
 
 #Bonds:ethanol
@@ -243,7 +243,7 @@ with open(ofname, 'wt') as of:
         eindex += 1
         l4 = l3 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\n'.format(eindex,3,c1index,hc2index)
         eindex += 1 
-        l5 = l4 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\n'.format(eindex,4,oh1index,c2index)
+        l5 = l4 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\n'.format(eindex,4,hh1index,c2index)
         eindex += 1
         l6 = l5 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\n'.format(eindex,5,oh1index,ho1index)
         eindex += 1
@@ -356,27 +356,27 @@ with open(ofname, 'wt') as of:
         h12index = hc3index + 1 #9
         l1 = '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\t{5:4d}\n'.format(eindex,       2,hc1index,c1index,c2index,oh1index)
         eindex += 1
-        l2 = l1 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\n'.format(eindex,  1,hc1index,c1index,c2index,h11index)
+        l2 = l1 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\t{5:4d}\n'.format(eindex,  1,hc1index,c1index,c2index,h11index)
         eindex += 1
-        l3 = l2 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\n'.format(eindex,  1,hc1index,c1index,c2index,h12index)
+        l3 = l2 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\t{5:4d}\n'.format(eindex,  1,hc1index,c1index,c2index,h12index)
         eindex += 1
-        l4 = l3 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\n'.format(eindex,  2,hc2index,c1index,c2index,oh1index)
+        l4 = l3 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\t{5:4d}\n'.format(eindex,  2,hc2index,c1index,c2index,oh1index)
         eindex += 1 
-        l5 = l4 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\n'.format(eindex,  1,hc2index,c1index,c2index,h11index)
+        l5 = l4 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\t{5:4d}\n'.format(eindex,  1,hc2index,c1index,c2index,h11index)
         eindex += 1
-        l6 = l5 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\n'.format(eindex,  1,hc3index,c1index,c2index,h11index)
+        l6 = l5 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\t{5:4d}\n'.format(eindex,  1,hc3index,c1index,c2index,h11index)
         eindex += 1
-        l7 = l6 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\n'.format(eindex,  2,hc3index,c1index,c2index,oh1index)
+        l7 = l6 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\t{5:4d}\n'.format(eindex,  2,hc3index,c1index,c2index,oh1index)
         eindex += 1
-        l8 = l7 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\n'.format(eindex,  1,hc3index,c1index,c2index,h11index)
+        l8 = l7 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\t{5:4d}\n'.format(eindex,  1,hc3index,c1index,c2index,h11index)
         eindex += 1
-        l9 = l8 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\n'.format(eindex,  1,hc3index,c1index,c2index,h12index)
+        l9 = l8 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\t{5:4d}\n'.format(eindex,  1,hc3index,c1index,c2index,h12index)
         eindex += 1
-        l10 = l9 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\n'.format(eindex, 4,c1index,c2index,oh1index,ho1index)
+        l10 = l9 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\t{5:4d}\n'.format(eindex, 4,c1index,c2index,oh1index,ho1index)
         eindex += 1
-        l11 = l10 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\n'.format(eindex,3,h11index,c2index,oh1index,ho1index)
+        l11 = l10 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\t{5:4d}\n'.format(eindex,3,h11index,c2index,oh1index,ho1index)
         eindex += 1
-        l12 = l11 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\n'.format(eindex,3,h12index,c2index,oh1index,ho1index)
+        l12 = l11 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\t{4:4d}\t{5:4d}\n'.format(eindex,3,h12index,c2index,oh1index,ho1index)
         eindex += 1
         of.write(l12)
 
