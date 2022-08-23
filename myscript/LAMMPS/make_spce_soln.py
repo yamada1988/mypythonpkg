@@ -243,7 +243,7 @@ with open(ofname, 'wt') as of:
         eindex += 1
         l4 = l3 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\n'.format(eindex,3,c1index,hc2index)
         eindex += 1 
-        l5 = l4 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\n'.format(eindex,4,hh1index,c2index)
+        l5 = l4 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\n'.format(eindex,4,h11index,c2index)
         eindex += 1
         l6 = l5 + '\t{0:4d}\t{1:2d}\t{2:4d}\t{3:4d}\n'.format(eindex,5,oh1index,ho1index)
         eindex += 1
