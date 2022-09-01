@@ -369,7 +369,10 @@ class MDConductor:
             slt_param = [[] for i in range(total_particles)]
             for index in range(total_particles):
                 slt_param[index] = nonbonded_force.getParticleParameters(index)
-
+ 
+            if index in ghost_particles:
+                nonbonded_force.setParticleParameters(index, charge=0.0e0, sigma=slt_param[index][1], epsilon=0.0e0)
+		
             for i in ghost_particles:
                 for j in core_particles:
                     if i == j:
