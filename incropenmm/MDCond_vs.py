@@ -7,7 +7,7 @@ from simtk.unit import *
 import parmed as pmd
 from sys import stdout
 import os
-import os.path
+import os.path　
 import sys 
 import numpy as np
 from numpy.random import *
