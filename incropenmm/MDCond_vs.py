@@ -7,7 +7,7 @@ from simtk.unit import *
 import parmed as pmd
 from sys import stdout
 import os
-import os.path　
+import os.path
 import sys 
 import numpy as np
 from numpy.random import *
@@ -151,7 +151,7 @@ class MDConductor_vs:
         self.switchflag = InpDict['nonbonded_switchflag']
         self.nonbonded_switch = float(InpDict['nonbonded_switch'])
         self.reporterformat = InpDict['reporterformat']
-        self.constr = InpDict['constraints']
+        self.constr = "app."+InpDict['constraints']
         self.nonbonded_method = InpDict['nonbonded_method']
         self.nonbonded_cutoffflag = InpDict['nonbonded_cutoffflag']
         self.nonbonded_cutoff = float(InpDict['nonbonded_cutoff'])
@@ -246,9 +246,19 @@ class MDConductor_vs:
             print('set PME...')
             if self.nonbonded_cutoffflag and self.fileformat == 'GRO':
                 nonbonded_cutoff = self.nonbonded_cutoff   
-                system = top.createSystem(hydrogenMass=self.hmass,nonbondedMethod=PME, 
-                                          nonbondedCutoff=self.nonbonded_cutoff,
-                                          constraints=self.constr,rigidWater=True)
+                if self.constr == "app.AllBonds":
+                    system = top.createSystem(hydrogenMass=self.hmass,nonbondedMethod=PME, 
+                                              nonbondedCutoff=self.nonbonded_cutoff,
+                                              constraints=app.AllBonds,rigidWater=True)
+                elif self.constr == "app.HBonds":
+                    system = top.createSystem(hydrogenMass=self.hmass,nonbondedMethod=PME, 
+                                              nonbondedCutoff=self.nonbonded_cutoff,
+                                              constraints=app.HBonds,rigidWater=True)
+                elif self.constr == "app.None":
+                    system = top.createSystem(hydrogenMass=self.hmass,nonbondedMethod=PME, 
+                                              nonbondedCutoff=self.nonbonded_cutoff,
+                                              constraints=None,rigidWater=True)
+                    
                 print(self.constr,system.getNumConstraints())
 
             elif self.nonbonded_cutoffflag and self.fileformat == 'PDB':
