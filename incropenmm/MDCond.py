@@ -1,4 +1,4 @@
-import incropenmm as incrmm
+import incropenmm as mymm
 import mdtraj as md
 from distutils.util import strtobool
 from simtk.openmm.app import *
@@ -18,7 +18,7 @@ import shutil
 import datetime
 
 #  Requirement:
-#  python 2.7, openmm, mdtraj, parmed
+#  python 3.7, openmm 7.5.0, mdtraj, parmed
 #
 def get_gpu_info():
    cmd = 'nvidia-smi --query-gpu=index --format=csv'
@@ -151,7 +151,7 @@ class MDConductor:
         self.switchflag = InpDict['nonbonded_switchflag']
         self.nonbonded_switch = float(InpDict['nonbonded_switch'])
         self.reporterformat = InpDict['reporterformat']
-        self.constraints = InpDict['constraints']
+        self.constr = InpDict['constraints']
         self.nonbonded_method = InpDict['nonbonded_method']
         self.nonbonded_cutoffflag = InpDict['nonbonded_cutoffflag']
         self.nonbonded_cutoff = float(InpDict['nonbonded_cutoff'])
@@ -245,24 +245,26 @@ class MDConductor:
                 nonbonded_cutoff = self.nonbonded_cutoff   
                 system = top.createSystem(hydrogenMass=self.hmass,nonbondedMethod=PME, 
                                           nonbondedCutoff=self.nonbonded_cutoff,
-                                          constraints=self.constraints,rigidWater=True)
+                                          constraints=self.constr,rigidWater=True)
+                print(self.constr,system.getNumConstraints())
 
             elif self.nonbonded_cutoffflag and self.fileformat == 'PDB':
                 nonbonded_cutoff = self.nonbonded_cutoff   
                 system = top.createSystem(self.modeller.topology, hydrogenMass=self.hmass,nonbondedMethod=PME, 
                                           nonbondedCutoff=self.nonbonded_cutoff,
-                                          constraints=self.constraints,rigidWater=True)
+                                          constraints=self.constr,rigidWater=True)
+            
 
             elif not self.nonbonded_cutoff_flag:
                 system = top.createSystem(hydrogenMass=self.hmass,nonbondedMethod=PME,
-                                          constraints=self.constraints)        
+                                          constraints=self.constr)        
 
 
         elif self.nonbonded_method == 'Cutoff':
             print('set cutoff...')
             system = top.createSystem(hydrogenMass=self.hmass,nonbondedMethod=Cutoff, 
                                       nonbondedCutoff=self.nonbonded_cutoff,
-                                      constraints=self.constraints)
+                                      constraints=self.constr)
         
 
         # Check ensembleflag
@@ -344,6 +346,7 @@ class MDConductor:
                 try:
                     core_index = total_lines.index('[ Core ]') + 1
                     ghost_index = total_lines.index('[ Ghost ]') + 1
+                    #solvent_index = total_lines.index('[ Solvent ]') + 1
                 except:
                     sys.exit('If ghost_particle flag is True, ghost_index file must be specified.\n')
             core_start = total_lines[core_index].split('-')[0]
@@ -364,15 +367,15 @@ class MDConductor:
             nonbonded_force = forces['NonbondedForce']
 
             solute_particles = list(core_particles) + list(ghost_particles)
-            self.ghosts = list(ghost_particles)
+            self.ghost_particles = list(ghost_particles)
             total_particles = nonbonded_force.getNumParticles()
             slt_param = [[] for i in range(total_particles)]
             for index in range(total_particles):
                 slt_param[index] = nonbonded_force.getParticleParameters(index)
- 
-            for index in ghost_particles:
+
+            if index in ghost_particles:
                 nonbonded_force.setParticleParameters(index, charge=0.0e0, sigma=slt_param[index][1], epsilon=0.0e0)
-		
+
             for i in ghost_particles:
                 for j in core_particles:
                     if i == j:
@@ -395,10 +398,10 @@ class MDConductor:
             for index in range(total_particles):
                 if index in ghost_particles:
                     nonbonded_force.setParticleParameters(index, charge=0.0e0, sigma=slt_param[index][1], epsilon=0.0e0)
-		
-	    # Set PBC to exception
+
+            # Set PBC to exception
             nonbonded_force.setExceptionsUsePeriodicBoundaryConditions(periodic=True)
-            
+
             # Check exception information
             #for index in range(nonbonded_force.getNumExceptions()):
             #    exception_info = nonbonded_force.getExceptionParameters(index)
@@ -418,6 +421,7 @@ class MDConductor:
             nbforce_02.setEwaldErrorTolerance(self.pme_ftol)
             nbforce_02.setSwitchingDistance(sw)
             nbforce_02.setUseDispersionCorrection(False)
+            #print('Ewald tl',tl)
             for index in range(total_particles):
                 nbforce_02.addParticle(0.0, 1.0, 0.0)
                 if index in ghost_particles:
@@ -581,6 +585,9 @@ class MDConductor:
             simulation.context.setPositions(self.modeller.positions)
         simulation.context.setVelocitiesToTemperature(self.temperature)
 
+        #set PBC 
+        #simulation.context.setPeriodicBoxVectors(gro.positions)
+
         return simulation
 
     # EM simulation
@@ -630,9 +637,9 @@ class MDConductor:
                 f.write('Generated by OpenMM: Date = {0:%Y-%m-%d %H:%M:%S}\n'.format(dt_now))
                 f.write(' '+self.anum+'\n')
                 for i,line in enumerate(self.lines[:-1]):
-                    l = line[:20] + '{0:8.4f}{1:8.4f}{2:8.4f}\n'.format(pos[i][0], pos[i][1], pos[i][2])
+                    l = line[:20] + '{0:8.3f}{1:8.3f}{2:8.3f}\n'.format(pos[i][0], pos[i][1], pos[i][2])
                     f.write(l)
-                f.write('{0:7.4f}\t{0:7.4f}\t{0:7.4f}\n'.format(pbcbox[0], pbcbox[1], pbcbox[2]))
+                f.write('   {0:7.5f}\t{0:7.5f}\t{0:7.5f}\n'.format(pbcbox[0], pbcbox[1], pbcbox[2]))
 
 
         return simulation
@@ -664,13 +671,13 @@ class MDConductor:
             xtc_flag = True
             #print('Save trajectory as xtcfile...')
             mdxtc = mddir + mdname + '.xtc'
-            xtc_reporter = incrmm.XTCReporter(mdxtc, self.recstep)
+            xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
             simulation.reporters.append(xtc_reporter)
         elif self.recflag and self.reporterformat == 'TRR' and remdflag == False:
             trr_flag = True
             #print('Save trajectory as xtcfile...')
             mdtrr = mddir + mdname + '.trr'
-            trr_reporter = incrmm.TRRReporter(mdtrr, self.recstep)
+            trr_reporter = mymm.TRRReporter(mdtrr, self.recstep)
             simulation.reporters.append(trr_reporter)
         elif self.recflag and self.reporterformat == 'HDF5' and remdflag == False:
             hdf5_flag = True
@@ -684,7 +691,7 @@ class MDConductor:
             indexj = index + '_{0:04d}'.format(niter)
             mdname_new = ensname + indexj
             mdxtc = mddir + mdname_new + '.xtc'
-            xtc_reporter = incrmm.XTCReporter(mdxtc, self.recstep)
+            xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
             simulation.reporters.append(xtc_reporter)
 
         if assert_system == True:
@@ -727,9 +734,9 @@ class MDConductor:
                     f.write('Generated by OpenMM: Date = {0:%Y-%m-%d %H:%M:%S}\n'.format(dt_now))
                     f.write(' '+self.anum+'\n')
                     for i,line in enumerate(self.lines[:-1]):
-                        l = line[:20] + '{0:8.4f}{1:8.4f}{2:8.4f}\n'.format(pos[i][0], pos[i][1], pos[i][2])
+                        l = line[:20] + '{0:8.3f}{1:8.3f}{2:8.3f}\n'.format(pos[i][0], pos[i][1], pos[i][2])
                         f.write(l)
-                    f.write('{0:7.4f}\t{0:7.4f}\t{0:7.4f}\n'.format(pbcbox[0], pbcbox[1], pbcbox[2]))
+                    f.write('   {0:7.4f}\t{0:7.4f}\t{0:7.4f}\n'.format(pbcbox[0], pbcbox[1], pbcbox[2]))
             if self.fileformat == 'PDB':
                 if os.path.exists(mdpdb):
                     shutil.copyfile(mdpdb, mdpdb.split('.')[0] + date_ + '.pdb')
@@ -791,7 +798,7 @@ class MDConductor:
             xtc_flag = True
             #print('Save trajectory as xtcfile...')
             mdxtc = mddir + mdname + '.xtc'
-            xtc_reporter = incrmm.XTCReporter(mdxtc, self.recstep)
+            xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
             simulation.reporters.append(xtc_reporter)
         elif self.recflag and self.reporterformat == 'HDF5' and remdflag == False:
             hdf5_flag = True
@@ -805,7 +812,7 @@ class MDConductor:
             indexj = index + '_{0:04d}'.format(niter)
             mdname_new = ensname + indexj
             mdxtc = mddir + mdname_new + '.xtc'
-            xtc_reporter = incrmm.XTCReporter(mdxtc, self.recstep)
+            xtc_reporter = mymm.XTCReporter(mdxtc, self.recstep)
             simulation.reporters.append(xtc_reporter)
 
         if assert_system == True:
@@ -967,7 +974,7 @@ class REMDConductor(MDConductor, object):
             for i,args in enumerate(arglist):
                 j = '{0:02d}'.format(i+1)
                 k = '{0:04d}'.format(niter)
-                thread = incrmm.MyThread(target=self.mdrun, args=(args[0], args[1], index, args[3], args[4]),
+                thread = mymm.MyThread(target=self.mdrun, args=(args[0], args[1], index, args[3], args[4]),
                                                                 kwargs={'remdflag':True, 'niter':niter, 'niter_tot':niter_tot,
                                                                         'nrep':j, 'assert_system':False, 'check_eneflag':True})
                 Threads[i]=thread
