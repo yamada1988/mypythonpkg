@@ -6,9 +6,9 @@ import sys
 args = sys.argv
 index = int(args[1])
 
-fname = "MD/npt{0:04d}.xtc".format(index)
+fname = "MD/chain{0:04d}.xtc".format(index)
 #fname = "MD/test{0:04d}.xtc".format(index)
-sysgro = "SYS/system{0:04d}.gro".format(index)
+sysgro = "SYS/chain{0:04d}.gro".format(index)
 ts = md.iterload(fname,top=sysgro)
 for i,t_test in enumerate(ts):
     if i == 0:
@@ -30,11 +30,12 @@ pairs = np.array((list(itertools.permutations(atms, 2))))
 distance_matrix = np.zeros((N,N-1))
 ts = md.iterload(fname,top=sysgro) #reinitializeation
 for i,t in enumerate(ts):
-    print(i,t)
+    #print(i,t)
+    print(i)
     dm = md.compute_distances(t, pairs)
     #print(dm)
     dm = np.mean(dm, axis=0)
-    print(dm)
+    #print(dm)
     dm = dm.reshape(N,N-1)
     distance_matrix += dm
     #if i == 2:
@@ -45,7 +46,6 @@ distance_matrix /= N_iterloads
 
 # insert diagonal element (0.0e0) in distance_matrix
 output_distance_matrix = []
-print(output_distance_matrix)
 
 for i,d in enumerate(distance_matrix):
     #print(i, d)
