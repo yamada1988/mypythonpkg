@@ -6,8 +6,8 @@ import sys
 args = sys.argv
 index = int(args[1])
 
-#fname = "MD/npt{0:04d}.xtc".format(index)
-fname = "MD/test{0:04d}.xtc".format(index)
+fname = "MD/npt{0:04d}.xtc".format(index)
+#fname = "MD/test{0:04d}.xtc".format(index)
 sysgro = "SYS/system{0:04d}.gro".format(index)
 ts = md.iterload(fname,top=sysgro)
 for i,t_test in enumerate(ts):
@@ -41,4 +41,19 @@ for i,t in enumerate(ts):
     #    break
 
 distance_matrix /= N_iterloads
-print(distance_matrix)
+#print(distance_matrix)
+
+# insert diagonal element (0.0e0) in distance_matrix
+output_distance_matrix = []
+print(output_distance_matrix)
+
+for i,d in enumerate(distance_matrix):
+    #print(i, d)
+    output_distance_matrix.append(np.insert(d, i, 0.0e0))
+
+output_distance_matrix = np.array(output_distance_matrix)
+#print(output_distance_matrix)  
+
+
+ofname = "DAT/residue_distance{0:04d}.dat".format(index)
+np.savetxt(ofname, output_distance_matrix, fmt="%.4e")
