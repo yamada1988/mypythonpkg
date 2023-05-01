@@ -465,8 +465,8 @@ contains
                                         (stnum + irank - 1) * skpcnf, &
                                         flceng_g(1:numslv, cntdst, irank)
                       endif
-911                   format(i9, 9999f15.5)
-912                   format(2i9, 9999f15.5)
+911                   format(i9, 999f55.5)
+912                   format(2i9, 999f55.5)
                    endif
                 enddo
              enddo
