@@ -29,3 +29,9 @@ incrOpenMMでrefs系のermod計算を行うための修正ermodのプログラ�
 
 # chain-increment-manual
 OpenMMおよびincrOpenMMのマニュアル。
+
+# sample_PE
+鎖長N=100のPolyethylene(PE)単成分系の計算サンプルディレクトリ。
+
+# sample_PEPVDF
+鎖長N=100のPolyethylene(PE)とPolyvinylidenedifluoide(PVDF)二成分系の計算サンプル。
