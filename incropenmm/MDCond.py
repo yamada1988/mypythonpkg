@@ -713,12 +713,12 @@ class MDConductor:
             #print('Saving...')
             if remdflag == False:
                 if self.fileformat == 'GRO':
-                    mdgro = sysdir + mdname + '.gro'
+                    mdgro = mddir + mdname + '.gro'
                 elif self.fileformat == 'PDB':
-                    mdpdb = sysdir + mdname + '.pdb'
+                    mdpdb = mddir + mdname + '.pdb'
             elif remdflag == True:
                 index_new = index + '_' + nrep
-                mdgro = sysdir + ensname + index_new + '.gro'
+                mdgro = mddir + ensname + index_new + '.gro'
             positions = simulation.context.getState(getPositions=True).getPositions()
             box = simulation.context.getState().getPeriodicBoxVectors()
             pbcbox = [box[0][0], box[1][1], box[2][2]]
