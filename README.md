@@ -35,3 +35,6 @@ OpenMMおよびincrOpenMMのマニュアル。
 
 # sample_PEPVDF
 鎖長N=100のPolyethylene(PE)とPolyvinylidenedifluoide(PVDF)二成分系の計算サンプル。
+
+# ermod-0.3.2-mod-Fixed-Water
+BAR計算のための修正ERmodの圧縮ファイル。Compressed file of modified ERmod for BAR calculation.
